@@ -46,19 +46,19 @@ submodules:
 # ====================================================================================
 # Special Targets
 
-define XGQL_MAKE_HELP
-xgql Targets:
+define DEPTHCHARGE_MAKE_HELP
+depthcharge Targets:
     reviewable            Ensure a PR is ready for review.
     submodules            Update the submodules, such as the common build scripts.
 
 endef
-# The reason XGQL_MAKE_HELP is used instead of XGQL_HELP is because the xgql
-# binary will try to use XGQL_HELP if it is set, and this is for something different.
-export XGQL_MAKE_HELP
+# The reason DEPTHCHARGE_MAKE_HELP is used instead of DEPTHCHARGE_HELP is because the depthcharge
+# binary will try to use DEPTHCHARGE_HELP if it is set, and this is for something different.
+export DEPTHCHARGE_MAKE_HELP
 
-xgql.help:
-	@echo "$$XGQL_MAKE_HELP"
+depthcharge.help:
+	@echo "$$DEPTHCHARGE_MAKE_HELP"
 
-help-special: xgql.help
+help-special: depthcharge.help
 
-.PHONY: xgql.help help-special
+.PHONY: depthcharge.help help-special
