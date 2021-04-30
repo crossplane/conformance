@@ -1,0 +1,28 @@
+---
+apiVersion: apiextensions.crossplane.io/v1
+kind: Composition
+metadata:
+  name: conformances.test.crossplane.io
+  labels:
+    crossplane.io/test: conformance
+spec:
+  writeConnectionSecretsToNamespace: crossplane-system
+  compositeTypeRef:
+    apiVersion: test.crossplane.io/v1alpha1
+    kind: Conformance
+  resources:
+    - name: nop
+      base:
+        apiVersion: nop.crossplane.io/v1alpha1
+        kind: NopResource
+        spec:
+          writeConnectionSecretToRef:
+            namespace: crossplane-conformance
+            name: nop-example-resource
+      patches:
+        - fromFieldPath: spec.parameters.coolness
+          toFieldPath: metadata.annotations[nop.crossplane.io/coolness]
+          transforms:
+            - type: string
+              string:
+                fmt: "%d"
