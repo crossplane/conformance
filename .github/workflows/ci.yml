@@ -116,56 +116,6 @@ jobs:
       - name: Check Diff
         run: make check-diff
 
-  conformance-tests:
-    runs-on: ubuntu-18.04
-    needs: detect-noop
-    if: needs.detect-noop.outputs.noop != 'true'
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v2
-        with:
-          submodules: true
-
-      - name: Fetch History
-        run: git fetch --prune --unshallow
-
-      - name: Setup Go
-        uses: actions/setup-go@v2
-        with:
-          go-version: ${{ env.GO_VERSION }}
-
-      - name: Find the Go Build Cache
-        id: go
-        run: echo "::set-output name=cache::$(go env GOCACHE)"
-
-      - name: Cache the Go Build Cache
-        uses: actions/cache@v2
-        with:
-          path: ${{ steps.go.outputs.cache }}
-          key: ${{ runner.os }}-build-conformance-tests-${{ hashFiles('**/go.sum') }}
-          restore-keys: ${{ runner.os }}-build-conformance-tests-
-
-      - name: Cache Go Dependencies
-        uses: actions/cache@v2
-        with:
-          path: .work/pkg
-          key: ${{ runner.os }}-pkg-${{ hashFiles('**/go.sum') }}
-          restore-keys: ${{ runner.os }}-pkg-
-
-      - name: Vendor Dependencies
-        run: make vendor vendor.check
-
-      - name: Run Unit Tests
-        run: make -j2 test
-
-      - name: Publish Unit Test Coverage
-        uses: codecov/codecov-action@v1
-        with:
-          flags: unittests
-          file: _output/tests/linux_amd64/coverage.txt
-          token: ${{ secrets.CODECOV_TOKEN }}
-
   publish-artifacts:
     runs-on: ubuntu-18.04
     needs: detect-noop
