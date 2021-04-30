@@ -1,11 +1,11 @@
 ---
 name: Bug Report
-about: Help us diagnose and fix bugs in depthcharge
+about: Help us diagnose and fix bugs in conformance
 labels: bug
 ---
 
 <!--
-Thank you for helping to improve depthcharge!
+Thank you for helping to improve conformance!
 
 Please be sure to search for open issues before raising a new one. We use issues
 for bug reports and feature requests. Please find us at https://slack.crossplane.io
@@ -15,7 +15,7 @@ for questions, support, and discussion.
 ### What happened?
 
 <!--
-Please let us know what behaviour you expected and how depthcharge diverged from
+Please let us know what behaviour you expected and how conformance diverged from
 that behaviour.
 -->
 
@@ -29,10 +29,10 @@ appreciated!
 
 ### What environment did it happen in?
 
-depthcharge version:
+conformance version:
 
 <!--
-Include at least the version or commit of depthcharge you were running. Consider
+Include at least the version or commit of conformance you were running. Consider
 also including your:
 
 * Cloud provider or hardware configuration

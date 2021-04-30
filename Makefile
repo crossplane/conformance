@@ -1,6 +1,6 @@
 # Setup Project
-PROJECT_NAME := depthcharge
-PROJECT_REPO := github.com/negz/$(PROJECT_NAME)
+PROJECT_NAME := conformance
+PROJECT_REPO := github.com/crossplane/$(PROJECT_NAME)
 
 PLATFORMS ?= linux_amd64 linux_arm64
 -include build/makelib/common.mk
@@ -17,8 +17,8 @@ GO111MODULE = on
 -include build/makelib/golang.mk
 
 # Setup Images
-DOCKER_REGISTRY = negz
-IMAGES = depthcharge
+DOCKER_REGISTRY = crossplane
+IMAGES = conformance
 OSBASEIMAGE = gcr.io/distroless/static:nonroot         
 -include build/makelib/image.mk  
 
@@ -46,19 +46,19 @@ submodules:
 # ====================================================================================
 # Special Targets
 
-define DEPTHCHARGE_MAKE_HELP
-depthcharge Targets:
+define conformance_MAKE_HELP
+conformance Targets:
     reviewable            Ensure a PR is ready for review.
     submodules            Update the submodules, such as the common build scripts.
 
 endef
-# The reason DEPTHCHARGE_MAKE_HELP is used instead of DEPTHCHARGE_HELP is because the depthcharge
-# binary will try to use DEPTHCHARGE_HELP if it is set, and this is for something different.
-export DEPTHCHARGE_MAKE_HELP
+# The reason conformance_MAKE_HELP is used instead of conformance_HELP is because the conformance
+# binary will try to use conformance_HELP if it is set, and this is for something different.
+export conformance_MAKE_HELP
 
-depthcharge.help:
-	@echo "$$DEPTHCHARGE_MAKE_HELP"
+conformance.help:
+	@echo "$$conformance_MAKE_HELP"
 
-help-special: depthcharge.help
+help-special: conformance.help
 
-.PHONY: depthcharge.help help-special
+.PHONY: conformance.help help-special

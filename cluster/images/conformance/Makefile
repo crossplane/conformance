@@ -1,7 +1,7 @@
 PLATFORMS := linux_amd64 linux_arm64 linux_arm
 include ../../../build/makelib/common.mk
 
-IMAGE = $(BUILD_REGISTRY)/depthcharge-$(ARCH)
+IMAGE = $(BUILD_REGISTRY)/conformance-$(ARCH)
 
 # Note that this is actually the 'debug' variant of the static image, which
 # includes a busybox shell with just enough functionality to turn regular old
