@@ -1,8 +1,8 @@
 <!--
-Thank you for helping to improve depthcharge!
+Thank you for helping to improve conformance!
 
 Please read through https://git.io/fj2m9 if this is your first time opening a
-depthcharge pull request. Find us in https://slack.crossplane.io/messages/dev if
+conformance pull request. Find us in https://slack.crossplane.io/messages/dev if
 you need any help contributing.
 -->
 
@@ -12,7 +12,7 @@ you need any help contributing.
 Briefly describe what this pull request does. Be sure to direct your reviewers'
 attention to anything that needs special consideration.
 
-We love pull requests that resolve an open depthcharge issue. If yours does, you
+We love pull requests that resolve an open conformance issue. If yours does, you
 can uncomment the below line to indicate which issue your PR fixes, for example
 "Fixes #500":
 
@@ -22,7 +22,7 @@ Fixes #
 
 I have:
 
-- [ ] Read and followed depthcharge's [contribution process].
+- [ ] Read and followed conformance's [contribution process].
 - [ ] Run `make reviewable test` to ensure this PR is ready for review.
 
 ### How has this code been tested

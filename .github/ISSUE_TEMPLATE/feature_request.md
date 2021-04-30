@@ -1,11 +1,11 @@
 ---
 name: Feature Request
-about: Help us make depthcharge more useful
+about: Help us make conformance more useful
 labels: enhancement
 ---
 
 <!--
-Thank you for helping to improve depthcharge!
+Thank you for helping to improve conformance!
 
 Please be sure to search for open issues before raising a new one. We use issues
 for bug reports and feature requests. Please find us at https://slack.crossplane.io
@@ -20,8 +20,8 @@ Leading with this context helps frame the feature request so we can ensure we
 implement it sensibly.
 --->
 
-### How could depthcharge help solve your problem?
+### How could conformance help solve your problem?
 
 <!--
-Let us know how you think depthcharge could help with your use case.
+Let us know how you think conformance could help with your use case.
 -->

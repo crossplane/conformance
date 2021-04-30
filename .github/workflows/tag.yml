@@ -4,10 +4,10 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Release version (e.g. v0.1.0)'
+        description: "Release version (e.g. v0.1.0)"
         required: true
       message:
-        description: 'Tag message'
+        description: "Tag message"
         required: true
 
 jobs:
@@ -19,7 +19,7 @@ jobs:
         uses: actions/checkout@v2
 
       - name: Create Tag
-        uses: negz/create-tag@v1
+        uses: crossplane/create-tag@v1
         with:
           version: ${{ github.event.inputs.version }}
           message: ${{ github.event.inputs.message }}
