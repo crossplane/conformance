@@ -16,7 +16,7 @@ else
 img.build:
 	@$(INFO) docker build $(IMAGE)
 	@cp Dockerfile $(IMAGE_TEMP_DIR) || $(FAIL)
-	@cp $(OUTPUT_DIR)/tests/$(OS)_$(ARCH)/conformance $(IMAGE_TEMP_DIR) || $(FAIL)
+	@cp $(OUTPUT_DIR)/tests/$(OS)_$(ARCH)/test $(IMAGE_TEMP_DIR)/conformance || $(FAIL)
 	@cp ../../../run.sh $(IMAGE_TEMP_DIR) || $(FAIL)
 	@cd $(IMAGE_TEMP_DIR) && $(SED_CMD) 's|BASEIMAGE|$(OSBASEIMAGE)|g' Dockerfile || $(FAIL)
 	@docker build $(BUILD_ARGS) \

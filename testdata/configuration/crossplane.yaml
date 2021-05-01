@@ -1,0 +1,12 @@
+apiVersion: meta.pkg.crossplane.io/v1
+kind: Configuration
+metadata:
+  name: conformance
+  annotations:
+    crossplane.io/test: conformance
+spec:
+  crossplane:
+    version: ">=v1.2.0"
+  dependsOn:
+    - provider: negz/provider-nop
+      version: ">=v0.13.0"

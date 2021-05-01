@@ -11,8 +11,9 @@ PLATFORMS ?= linux_amd64 linux_arm64
 # Setup Go
 NPROCS ?= 1
 GO_TEST_PARALLEL := $(shell echo $$(( $(NPROCS) / 2 )))
-GO_TEST_PACKAGES = $(GO_PROJECT)/conformance
-GO_SUBDIRS += conformance
+GO_TEST_PACKAGES = $(GO_PROJECT)/test
+GO_LDFLAGS += -X $(GO_PROJECT)/test.Version=$(VERSION)
+GO_SUBDIRS += test
 GO111MODULE = on
 -include build/makelib/golang.mk
 
