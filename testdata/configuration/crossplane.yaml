@@ -6,7 +6,7 @@ metadata:
     crossplane.io/test: conformance
 spec:
   crossplane:
-    version: ">=v1.2.0"
+    version: ">=v1.1.0"
   dependsOn:
     - provider: negz/provider-nop
-      version: ">=v0.13.0"
+      version: "v0.1.0"
