@@ -8,13 +8,15 @@ import (
 	kextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+
+	"github.com/crossplane/conformance/internal"
 )
 
 func TestCustomResourceDefinitions(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	t.Cleanup(cancel)
 
-	kube, err := NewClient()
+	kube, err := internal.NewClient()
 	if err != nil {
 		t.Fatalf("Create client: %v", err)
 	}

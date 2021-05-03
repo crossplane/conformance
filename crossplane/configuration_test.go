@@ -13,6 +13,8 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 
 	pkgv1 "github.com/crossplane/crossplane/apis/pkg/v1"
+
+	"github.com/crossplane/conformance/internal"
 )
 
 func TestConfiguration(t *testing.T) { //nolint:gocyclo
@@ -24,7 +26,7 @@ func TestConfiguration(t *testing.T) { //nolint:gocyclo
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	t.Cleanup(cancel)
 
-	kube, err := NewClient()
+	kube, err := internal.NewClient()
 	if err != nil {
 		t.Fatalf("Create client: %v", err)
 	}
@@ -48,10 +50,6 @@ func TestConfiguration(t *testing.T) { //nolint:gocyclo
 	}
 	t.Logf("Created configuration %q", cfg.GetName())
 
-	// TODO(negz): There appears to be a race in deleting this provider, despite
-	// cleanup functions being called in the opposite order in which they are
-	// defined. The delete call always succeeds, but I suspect the configrev is
-	// (re)creating the provider right after it is deleted.
 	t.Cleanup(func() {
 		t.Logf("Cleaning up provider %q.", prv.GetName())
 		if err := kube.Get(ctx, types.NamespacedName{Name: prv.GetName()}, prv); err != nil {

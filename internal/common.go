@@ -1,4 +1,4 @@
-package crossplane
+package internal
 
 import (
 	"github.com/pkg/errors"
