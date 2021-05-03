@@ -1,4 +1,4 @@
-package conformance
+package crossplane
 
 import (
 	"github.com/pkg/errors"
