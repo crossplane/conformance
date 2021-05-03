@@ -1,7 +1,7 @@
 PLATFORMS := linux_amd64 linux_arm64 linux_arm
 include ../../../build/makelib/common.mk
 
-IMAGE = $(BUILD_REGISTRY)/conformance-$(ARCH)
+IMAGE = $(BUILD_REGISTRY)/provider-conformance-$(ARCH)
 
 # Note that this is actually the 'debug' variant of the static image, which
 # includes a busybox shell with just enough functionality to turn regular old
@@ -16,7 +16,7 @@ else
 img.build:
 	@$(INFO) docker build $(IMAGE)
 	@cp Dockerfile $(IMAGE_TEMP_DIR) || $(FAIL)
-	@cp $(OUTPUT_DIR)/tests/$(OS)_$(ARCH)/crossplane $(IMAGE_TEMP_DIR)/conformance || $(FAIL)
+	@cp $(OUTPUT_DIR)/tests/$(OS)_$(ARCH)/provider $(IMAGE_TEMP_DIR)/conformance || $(FAIL)
 	@cp ../../../run.sh $(IMAGE_TEMP_DIR) || $(FAIL)
 	@cd $(IMAGE_TEMP_DIR) && $(SED_CMD) 's|BASEIMAGE|$(OSBASEIMAGE)|g' Dockerfile || $(FAIL)
 	@docker build $(BUILD_ARGS) \

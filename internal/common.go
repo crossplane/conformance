@@ -1,4 +1,4 @@
-package conformance
+package internal
 
 import (
 	"github.com/pkg/errors"

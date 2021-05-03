@@ -11,15 +11,15 @@ PLATFORMS ?= linux_amd64 linux_arm64
 # Setup Go
 NPROCS ?= 1
 GO_TEST_PARALLEL := $(shell echo $$(( $(NPROCS) / 2 )))
-GO_TEST_PACKAGES = $(GO_PROJECT)/test
-GO_LDFLAGS += -X $(GO_PROJECT)/test.Version=$(VERSION)
-GO_SUBDIRS += test
+GO_TEST_PACKAGES = $(GO_PROJECT)/crossplane $(GO_PROJECT)/provider
+GO_LDFLAGS += -X $(GO_PROJECT)/internal.Version=$(VERSION)
+GO_SUBDIRS += internal crossplane provider
 GO111MODULE = on
 -include build/makelib/golang.mk
 
 # Setup Images
 DOCKER_REGISTRY = crossplane
-IMAGES = conformance
+IMAGES = conformance provider-conformance
 OSBASEIMAGE = gcr.io/distroless/static:nonroot         
 -include build/makelib/image.mk  
 

@@ -1,0 +1,13 @@
+sonobuoy-config:
+  driver: Job
+  plugin-name: crossplane-provider-conformance
+  result-format: junit
+spec:
+  command: ["run.sh"]
+  args:
+  image: crossplane/provider-conformance:alpha
+  name: plugin
+  resources: {}
+  volumeMounts:
+    - mountPath: /tmp/results
+      name: results
