@@ -13,7 +13,7 @@ import (
 )
 
 func TestCustomResourceDefinitions(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
 	t.Cleanup(cancel)
 
 	kube, err := internal.NewClient()

@@ -23,7 +23,7 @@ func TestConfiguration(t *testing.T) { //nolint:gocyclo
 	// being able to do function rather than package scoped setup for things
 	// like the Kubernetes client.
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
 
 	kube, err := internal.NewClient()
