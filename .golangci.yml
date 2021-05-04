@@ -126,6 +126,11 @@ linters:
 issues:
   # Excluding configuration per-path and per-linter
   exclude-rules:
+    # Exclude some linters from running on tests files.
+    - path: _test(ing)?\.go
+      linters:
+        - gocyclo
+
     # These are performance optimisations rather than style issues per se.
     # They warn when function arguments or range values copy a lot of memory
     # rather than using a pointer.
