@@ -11,18 +11,15 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/utils/pointer"
 
+	"github.com/crossplane/crossplane-runtime/pkg/resource"
 	pkgv1 "github.com/crossplane/crossplane/apis/pkg/v1"
 
 	"github.com/crossplane/conformance/internal"
 )
 
-func TestConfiguration(t *testing.T) { //nolint:gocyclo
-	// TODO(negz): Break these subtests up into distinct test functions? Doing
-	// so would reduce the cyclometric complexity of this function, but I like
-	// being able to do function rather than package scoped setup for things
-	// like the Kubernetes client.
-
+func TestConfiguration(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
 
@@ -37,7 +34,8 @@ func TestConfiguration(t *testing.T) { //nolint:gocyclo
 		ObjectMeta: metav1.ObjectMeta{Name: "crossplane-conformance"},
 		Spec: pkgv1.ConfigurationSpec{
 			PackageSpec: pkgv1.PackageSpec{
-				Package: "crossplane/conformance-testdata-configuration:latest",
+				Package:                     "crossplane/conformance-testdata-configuration:latest",
+				IgnoreCrossplaneConstraints: pointer.BoolPtr(true),
 			},
 		},
 	}
@@ -52,10 +50,10 @@ func TestConfiguration(t *testing.T) { //nolint:gocyclo
 
 	t.Cleanup(func() {
 		t.Logf("Cleaning up provider %q.", prv.GetName())
-		if err := kube.Get(ctx, types.NamespacedName{Name: prv.GetName()}, prv); err != nil {
+		if err := kube.Get(ctx, types.NamespacedName{Name: prv.GetName()}, prv); resource.IgnoreNotFound(err) != nil {
 			t.Fatalf("Get provider %q: %v", prv.GetName(), err)
 		}
-		if err := kube.Delete(ctx, prv); err != nil {
+		if err := kube.Delete(ctx, prv); resource.IgnoreNotFound(err) != nil {
 			t.Fatalf("Delete provider %q: %v", prv.GetName(), err)
 		}
 		t.Logf("Deleted provider %q", prv.GetName())
@@ -63,10 +61,10 @@ func TestConfiguration(t *testing.T) { //nolint:gocyclo
 
 	t.Cleanup(func() {
 		t.Logf("Cleaning up configuration %q.", cfg.GetName())
-		if err := kube.Get(ctx, types.NamespacedName{Name: cfg.GetName()}, cfg); err != nil {
+		if err := kube.Get(ctx, types.NamespacedName{Name: cfg.GetName()}, cfg); resource.IgnoreNotFound(err) != nil {
 			t.Fatalf("Get configuration %q: %v", cfg.GetName(), err)
 		}
-		if err := kube.Delete(ctx, cfg); err != nil {
+		if err := kube.Delete(ctx, cfg); resource.IgnoreNotFound(err) != nil {
 			t.Fatalf("Delete configuration %q: %v", cfg.GetName(), err)
 		}
 		t.Logf("Deleted configuration %q", cfg.GetName())
@@ -138,7 +136,7 @@ func TestConfiguration(t *testing.T) { //nolint:gocyclo
 
 						if err := kube.Get(ctx, types.NamespacedName{Name: ref.Name}, u); err != nil {
 							if kerrors.IsNotFound(err) {
-								t.Logf("Revision %q has not yet created %s %q", rev.GetName(), ref.Kind, ref.Name)
+								t.Logf("Revision %q has not yet been created %s %q", rev.GetName(), ref.Kind, ref.Name)
 								return false, nil
 							}
 							return false, err

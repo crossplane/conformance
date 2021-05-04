@@ -11,18 +11,15 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/utils/pointer"
 
+	"github.com/crossplane/crossplane-runtime/pkg/resource"
 	pkgv1 "github.com/crossplane/crossplane/apis/pkg/v1"
 
 	"github.com/crossplane/conformance/internal"
 )
 
-func TestProvider(t *testing.T) { //nolint:gocyclo
-	// TODO(negz): Break these subtests up into distinct test functions? Doing
-	// so would reduce the cyclometric complexity of this function, but I like
-	// being able to do function rather than package scoped setup for things
-	// like the Kubernetes client.
-
+func TestProvider(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
 
@@ -31,15 +28,14 @@ func TestProvider(t *testing.T) { //nolint:gocyclo
 		t.Fatalf("Create client: %v", err)
 	}
 
-	// This provider is defined in the testdata/provider directory
-	// of this repository. It is built and pushed by CI/CD.
+	// TODO(negz): Use the other provider-nop from contrib once it's ready.
+	// https://github.com/crossplane-contrib/provider-nop
 	prv := &pkgv1.Provider{
 		ObjectMeta: metav1.ObjectMeta{Name: "crossplane-conformance"},
 		Spec: pkgv1.ProviderSpec{
 			PackageSpec: pkgv1.PackageSpec{
-				// TODO(negz): Use the other provider-nop from contrib once it's
-				// ready. https://github.com/crossplane-contrib/provider-nop
-				Package: "negz/provider-nop:v0.1.0",
+				Package:                     "negz/provider-nop:v0.1.0",
+				IgnoreCrossplaneConstraints: pointer.BoolPtr(true),
 			},
 		},
 	}
@@ -51,10 +47,10 @@ func TestProvider(t *testing.T) { //nolint:gocyclo
 
 	t.Cleanup(func() {
 		t.Logf("Cleaning up provider %q.", prv.GetName())
-		if err := kube.Get(ctx, types.NamespacedName{Name: prv.GetName()}, prv); err != nil {
+		if err := kube.Get(ctx, types.NamespacedName{Name: prv.GetName()}, prv); resource.IgnoreNotFound(err) != nil {
 			t.Fatalf("Get provider %q: %v", prv.GetName(), err)
 		}
-		if err := kube.Delete(ctx, prv); err != nil {
+		if err := kube.Delete(ctx, prv); resource.IgnoreNotFound(err) != nil {
 			t.Fatalf("Delete provider %q: %v", prv.GetName(), err)
 		}
 		t.Logf("Deleted provider %q", prv.GetName())
@@ -126,7 +122,7 @@ func TestProvider(t *testing.T) { //nolint:gocyclo
 
 						if err := kube.Get(ctx, types.NamespacedName{Name: ref.Name}, u); err != nil {
 							if kerrors.IsNotFound(err) {
-								t.Logf("Revision %q has not yet created %s %q", rev.GetName(), ref.Kind, ref.Name)
+								t.Logf("Revision %q has not yet been created %s %q", rev.GetName(), ref.Kind, ref.Name)
 								return false, nil
 							}
 							return false, err
