@@ -71,7 +71,6 @@ func TestConfiguration(t *testing.T) {
 	})
 
 	t.Run("BecomesInstalledAndHealthy", func(t *testing.T) {
-		t.Parallel()
 		t.Log("Testing that the configuration's Healthy and Installed status conditions become 'True'.")
 		if err := wait.PollImmediate(10*time.Second, 90*time.Second, func() (done bool, err error) {
 			if err := kube.Get(ctx, types.NamespacedName{Name: cfg.GetName()}, cfg); err != nil {
@@ -96,7 +95,6 @@ func TestConfiguration(t *testing.T) {
 	})
 
 	t.Run("RevisionBecomesHealthyAndDeploysObjects", func(t *testing.T) {
-		t.Parallel()
 		t.Log("Testing that the configuration's revision's Healthy status condition becomes 'True', and that it deploys its objects.")
 
 		if err := wait.PollImmediate(10*time.Second, 90*time.Second, func() (done bool, err error) {
@@ -155,7 +153,6 @@ func TestConfiguration(t *testing.T) {
 	})
 
 	t.Run("DependencyBecomesInstalledAndHealthy", func(t *testing.T) {
-		t.Parallel()
 		t.Log("Testing that the configuration's dependencies' Healthy and Installed status conditions become 'True'.")
 		if err := wait.PollImmediate(10*time.Second, 90*time.Second, func() (done bool, err error) {
 			if err := kube.Get(ctx, types.NamespacedName{Name: prv.GetName()}, prv); err != nil {

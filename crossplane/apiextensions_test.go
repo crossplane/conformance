@@ -81,7 +81,6 @@ func TestCompositeResourceDefinition(t *testing.T) {
 	})
 
 	t.Run("BecomesEstablishedAndOffered", func(t *testing.T) {
-		t.Parallel()
 		t.Log("Testing that the XRD's Established and Offered status conditions become 'True'.")
 		if err := wait.PollImmediate(10*time.Second, 90*time.Second, func() (done bool, err error) {
 			if err := kube.Get(ctx, types.NamespacedName{Name: xrd.GetName()}, xrd); err != nil {
@@ -106,7 +105,6 @@ func TestCompositeResourceDefinition(t *testing.T) {
 	})
 
 	t.Run("CRDIsCreatedForXR", func(t *testing.T) {
-		t.Parallel()
 		t.Log("Testing that the XRD creates a conformant CRD for its XR.")
 
 		// TODO(negz): Use Crossplane's internal/xcrd package instead? We can't
@@ -277,7 +275,6 @@ func TestCompositeResourceDefinition(t *testing.T) {
 	})
 
 	t.Run("CRDIsCreatedForXRC", func(t *testing.T) {
-		t.Parallel()
 		t.Log("Testing that the XRD creates a conformant CRD for its XRC.")
 
 		// TODO(negz): Use Crossplane's internal/xcrd package instead? We can't
