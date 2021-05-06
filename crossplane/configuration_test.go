@@ -31,7 +31,7 @@ func TestConfiguration(t *testing.T) {
 	// This configuration is defined in the testdata/configuration directory
 	// of this repository. It is built and pushed by CI/CD.
 	cfg := &pkgv1.Configuration{
-		ObjectMeta: metav1.ObjectMeta{Name: "crossplane-conformance"},
+		ObjectMeta: metav1.ObjectMeta{Name: internal.SuiteName},
 		Spec: pkgv1.ConfigurationSpec{
 			PackageSpec: pkgv1.PackageSpec{
 				Package:                     "crossplane/conformance-testdata-configuration:latest",

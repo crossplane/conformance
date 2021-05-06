@@ -10,9 +10,13 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/crossplane/crossplane-runtime/pkg/resource/unstructured"
 	extv1 "github.com/crossplane/crossplane/apis/apiextensions/v1"
 	pkgv1 "github.com/crossplane/crossplane/apis/pkg/v1"
 )
+
+// SuiteName of the conformance test suite.
+const SuiteName = "crossplane-conformance"
 
 // Version of the conformance plugin.
 var Version = "unknown"
@@ -29,7 +33,7 @@ func NewClient() (client.Client, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "cannot create Kubernetes API REST config")
 	}
-	cfg.UserAgent = "crossplane-conformance/" + Version
+	cfg.UserAgent = SuiteName + "/" + Version
 	cfg.QPS = 20
 	cfg.Burst = 100
 
@@ -59,5 +63,19 @@ func NewClient() (client.Client, error) {
 	}
 
 	c, err := client.New(cfg, client.Options{Scheme: s})
-	return c, errors.Wrap(err, "cannot create Kubernetes API client")
+	return unstructured.NewClient(c), errors.Wrap(err, "cannot create Kubernetes API client")
+}
+
+// CRDIs returns true if the supplied conditions array contains a condition of
+// the supplied type that is true.
+func CRDIs(cs []kextv1.CustomResourceDefinitionCondition, t kextv1.CustomResourceDefinitionConditionType) bool {
+	for _, c := range cs {
+		if c.Type != t {
+			continue
+		}
+		if c.Status == kextv1.ConditionTrue {
+			return true
+		}
+	}
+	return false
 }

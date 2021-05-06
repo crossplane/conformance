@@ -31,7 +31,7 @@ func TestProvider(t *testing.T) {
 	// TODO(negz): Use the other provider-nop from contrib once it's ready.
 	// https://github.com/crossplane-contrib/provider-nop
 	prv := &pkgv1.Provider{
-		ObjectMeta: metav1.ObjectMeta{Name: "crossplane-conformance"},
+		ObjectMeta: metav1.ObjectMeta{Name: internal.SuiteName},
 		Spec: pkgv1.ProviderSpec{
 			PackageSpec: pkgv1.PackageSpec{
 				Package:                     "negz/provider-nop:v0.1.0",
