@@ -2,9 +2,9 @@
 apiVersion: apiextensions.crossplane.io/v1
 kind: Composition
 metadata:
-  name: conformances.test.crossplane.io
+  name: crossplane-conformance
   labels:
-    crossplane.io/test: conformance
+    crossplane.io/test: crossplane-conformance
 spec:
   writeConnectionSecretsToNamespace: crossplane-system
   compositeTypeRef:

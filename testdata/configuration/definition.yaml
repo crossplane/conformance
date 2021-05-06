@@ -4,7 +4,7 @@ kind: CompositeResourceDefinition
 metadata:
   name: clusterconformances.test.crossplane.io
   labels:
-    crossplane.io/test: conformance
+    crossplane.io/test: crossplane-conformance
 spec:
   group: test.crossplane.io
   names:
