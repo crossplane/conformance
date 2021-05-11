@@ -12,15 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package crossplane
+// +build generate
+
+// NOTE(negz): See the below link for details on what is happening here.
+// https://github.com/golang/go/wiki/Modules#how-can-i-track-tool-dependencies-for-a-module
+
+// Add license headers to all files.
+//go:generate go run -tags generate github.com/google/addlicense -v -c "The Crossplane Authors" . ../crossplane ../provider
+
+package internal
 
 import (
-	"testing"
-
-	"github.com/crossplane/conformance/internal"
+	_ "github.com/google/addlicense" //nolint:typecheck
 )
-
-func TestVersion(t *testing.T) {
-	// Not really a test, but we want somewhere to log this.
-	t.Logf("Conformance test version: %s", internal.Version)
-}
