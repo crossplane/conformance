@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"github.com/google/go-cmp/cmp"
 	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -78,4 +79,79 @@ func CRDIs(cs []kextv1.CustomResourceDefinitionCondition, t kextv1.CustomResourc
 		}
 	}
 	return false
+}
+
+// AsSet returns the supplied string slice as a set.
+func AsSet(in []string) map[string]bool {
+	set := map[string]bool{}
+	for _, s := range in {
+		set[s] = true
+	}
+	return set
+}
+
+// IgnoreFieldsOfMapKey is like cmpopts.IgnoreFields, but it only ignores fields
+// of structs that are the value of a map index with the supplied key. It is
+// intended for use with the kextv1.JSONSChemaProps type where IgnoreFields
+// would be applied too broadly (e.g. by ignoring fields within a particular
+// type of struct regardless of where it appeared in the map).
+func IgnoreFieldsOfMapKey(key string, names ...string) cmp.Option {
+	return cmp.FilterPath(func(p cmp.Path) bool {
+		m, ok := p.Index(-2).(cmp.MapIndex)
+		if !ok || m.Key().String() != key {
+			return false
+		}
+
+		f, ok := p.Index(-1).(cmp.StructField)
+		if !ok {
+			return false
+		}
+
+		for _, n := range names {
+			if _, ok := m.Type().FieldByName(n); !ok {
+				panic(errors.Errorf("%s field %q does not exist\n", m.Type(), n))
+			}
+			if f.Name() == n {
+				return true
+			}
+		}
+
+		return false
+	}, cmp.Ignore())
+}
+
+// OnlySubproperties is intended for use with the kextv1.JSONSchemaProps type.
+// It ignores the supplied keys within any map that is the value of a struct
+// field named 'Properties' where the struct is itself a map value under a key
+// with the supplied name.
+func OnlySubproperties(key string, keys ...string) cmp.Option {
+	props := "Properties"
+	return cmp.FilterPath(func(p cmp.Path) bool {
+		m, ok := p.Index(-3).(cmp.MapIndex)
+		if !ok || m.Key().String() != key {
+			return false
+		}
+
+		if _, ok := m.Type().FieldByName(props); !ok {
+			panic(errors.Errorf("%s field %q does not exist\n", m.Type(), props))
+		}
+
+		f, ok := p.Index(-2).(cmp.StructField)
+		if !ok || f.Name() != props {
+			return false
+		}
+
+		m, ok = p.Index(-1).(cmp.MapIndex)
+		if !ok {
+			return false
+		}
+
+		for _, n := range keys {
+			if m.Key().String() == n {
+				return false
+			}
+		}
+
+		return true
+	}, cmp.Ignore())
 }
