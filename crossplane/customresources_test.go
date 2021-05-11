@@ -35,10 +35,17 @@ func TestCustomResourceDefinitions(t *testing.T) {
 		crd := crd // Don't take the address of a range var.
 		if err := kube.Get(ctx, types.NamespacedName{Name: crd.GetName()}, &crd); err != nil {
 			t.Errorf("Cannot get CRD %q: %v", crd.GetName(), err)
+			continue
 		}
 
+		// TODO(negz): Just cmp.Diff the entire CRD spec?
 		if crd.Spec.Scope != kextv1.ClusterScoped {
 			t.Errorf("CRD %q must define a cluster scoped resource", crd.GetName())
+		}
+
+		cats := internal.AsSet(crd.Spec.Names.Categories)
+		if !cats["crossplane"] {
+			t.Errorf("CRD %q must be in category 'crossplane'", crd.GetName())
 		}
 	}
 }
