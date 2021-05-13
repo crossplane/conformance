@@ -23,10 +23,13 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	corev1 "k8s.io/api/core/v1"
 	kextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 
+	xpv1 "github.com/crossplane/crossplane-runtime/apis/common/v1"
+	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
 	pkgv1 "github.com/crossplane/crossplane/apis/pkg/v1"
 
 	"github.com/crossplane/conformance/internal"
@@ -113,13 +116,13 @@ func TestPackage(t *testing.T) {
 				// Deprecated, but still exists in some providers.
 				continue
 			case "ProviderConfig":
-				t.Run(crd.Spec.Names.Kind, SubtestForProviderConfig(crd))
+				t.Run(crd.Spec.Names.Kind, SubtestForProviderConfigCRD(crd))
 				hasPC = true
 			case "ProviderConfigUsage":
-				t.Run(crd.Spec.Names.Kind, SubtestForProviderConfigUsage(crd))
+				t.Run(crd.Spec.Names.Kind, SubtestForProviderConfigUsageCRD(crd))
 				hasPCU = true
 			default:
-				t.Run(crd.Spec.Names.Kind, SubtestForManagedResource(crd))
+				t.Run(crd.Spec.Names.Kind, SubtestForManagedResourceCRD(crd))
 				hasMR = true
 			}
 		}
@@ -129,16 +132,69 @@ func TestPackage(t *testing.T) {
 		}
 
 		if !hasPC {
-			t.Errorf("ProviderRevision %q must define exactly one conformant provider config", rev.GetName())
+			t.Errorf("ProviderRevision %q must define at least one conformant provider config", rev.GetName())
 		}
 
 		if !hasPCU {
-			t.Errorf("ProviderRevision %q must define exactly one conformant provider config usage", rev.GetName())
+			t.Errorf("ProviderRevision %q must define at least one conformant provider config usage", rev.GetName())
+		}
+	})
+
+	t.Run("ManagedResourcesAppearConformant", func(t *testing.T) {
+		t.Logf("Testing that managed resources defined by ProviderRevision %q appear conformant.", rev.GetName())
+
+		totalMRs := 0
+		totalPCUs := 0
+
+		for _, ref := range rev.Status.ObjectRefs {
+
+			crd := &kextv1.CustomResourceDefinition{}
+			if err := kube.Get(ctx, types.NamespacedName{Name: ref.Name}, crd); err != nil {
+				t.Errorf("Get CRD %q: %v", ref.Name, err)
+				continue
+			}
+
+			// TODO(negz): Use the highest version, rather than the first one.
+			gvk := schema.GroupVersionKind{Group: crd.Spec.Group, Kind: crd.Spec.Names.ListKind}
+			for _, v := range crd.Spec.Versions {
+				if !v.Served {
+					continue
+				}
+				gvk.Version = v.Name
+				break
+			}
+
+			l := &unstructured.UnstructuredList{}
+			l.SetAPIVersion(gvk.GroupVersion().String())
+			l.SetKind(gvk.Kind)
+			if err := kube.List(ctx, l); err != nil {
+				t.Fatalf("List resources defined by CRD %q: %v", crd.GetName(), err)
+			}
+
+			switch crd.Spec.Names.Kind {
+			case "Provider":
+				continue
+			case "ProviderConfig":
+				continue
+			case "ProviderConfigUsage":
+				totalPCUs += len(l.Items)
+			default:
+				if len(l.Items) != 1 {
+					t.Errorf("Exactly one %q managed resource must be manually created in advance. Found %d", crd.GetName(), len(l.Items))
+					continue
+				}
+				t.Run(crd.Spec.Names.Kind, SubtestForManagedResource(&l.Items[0]))
+				totalMRs++
+			}
+		}
+
+		if totalPCUs != totalMRs {
+			t.Errorf("One ProviderConfigUsage should exist for each managed resource. Want %d, got %d.", totalMRs, totalPCUs)
 		}
 	})
 }
 
-func SubtestForProviderConfig(crd *kextv1.CustomResourceDefinition) func(t *testing.T) {
+func SubtestForProviderConfigCRD(crd *kextv1.CustomResourceDefinition) func(t *testing.T) {
 	return func(t *testing.T) {
 		if crd.Spec.Scope != kextv1.ClusterScoped {
 			t.Error("provider configs must be cluster scoped")
@@ -212,7 +268,7 @@ func SubtestForProviderConfig(crd *kextv1.CustomResourceDefinition) func(t *test
 	}
 }
 
-func SubtestForProviderConfigUsage(crd *kextv1.CustomResourceDefinition) func(t *testing.T) {
+func SubtestForProviderConfigUsageCRD(crd *kextv1.CustomResourceDefinition) func(t *testing.T) {
 	return func(t *testing.T) {
 		if crd.Spec.Scope != kextv1.ClusterScoped {
 			t.Error("provider config usages must be cluster scoped")
@@ -276,7 +332,7 @@ func SubtestForProviderConfigUsage(crd *kextv1.CustomResourceDefinition) func(t 
 	}
 }
 
-func SubtestForManagedResource(crd *kextv1.CustomResourceDefinition) func(t *testing.T) {
+func SubtestForManagedResourceCRD(crd *kextv1.CustomResourceDefinition) func(t *testing.T) {
 	return func(t *testing.T) {
 		if crd.Spec.Scope != kextv1.ClusterScoped {
 			t.Error("managed resources must be cluster scoped")
@@ -384,5 +440,34 @@ func SubtestForManagedResource(crd *kextv1.CustomResourceDefinition) func(t *tes
 		if !served {
 			t.Error("CRDs must serve at least one custom resource version")
 		}
+	}
+}
+
+func SubtestForManagedResource(mr *unstructured.Unstructured) func(t *testing.T) {
+	return func(t *testing.T) {
+		paved := fieldpath.Pave(mr.Object)
+
+		cs := &xpv1.ConditionedStatus{}
+		if err := paved.GetValueInto("status", cs); err != nil {
+			t.Errorf("Get %s status conditions: %v", mr.GetName(), err)
+		}
+
+		want := xpv1.Available()
+		got := cs.GetCondition(xpv1.TypeReady)
+		if diff := cmp.Diff(want, got); diff != "" {
+			t.Errorf("%q status: -want, +got:\n%s", mr.GetName(), diff)
+		}
+
+		n, err := paved.GetString("metadata.annotations[crossplane.io/external-name]")
+		if err != nil {
+			t.Errorf("Get %s external name annotation: %v", mr.GetName(), err)
+		}
+		if n == "" {
+			t.Errorf("%q must have a non-zero %q annotation", mr.GetName(), "crossplane.io/external-name")
+		}
+
+		// TODO(negz): Test that spec.writeConnectionSecretToRef points to a
+		// secret that exists? We can't test that the secret actually has data,
+		// because not all managed resources write connection details.
 	}
 }
