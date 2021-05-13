@@ -179,12 +179,12 @@ func TestPackage(t *testing.T) {
 			case "ProviderConfigUsage":
 				totalPCUs += len(l.Items)
 			default:
-				if len(l.Items) != 1 {
-					t.Errorf("Exactly one %q managed resource must be manually created in advance. Found %d", crd.GetName(), len(l.Items))
+				if len(l.Items) == 0 {
+					t.Errorf("At least one %q managed resource must be manually created in advance.", crd.GetName())
 					continue
 				}
 				t.Run(crd.Spec.Names.Kind, SubtestForManagedResource(&l.Items[0]))
-				totalMRs++
+				totalMRs += len(l.Items)
 			}
 		}
 
