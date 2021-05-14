@@ -19,9 +19,9 @@ sonobuoy run --wait --plugin https://raw.githubusercontent.com/crossplane/confor
 sonobuoy results $(sonobuoy retrieve) -m dump
 ```
 
-Note that the provider conformance tests require some advanced setup. The test
-requires that at least one of each kind of managed resource exists and is ready
-(in the status condition sense).
+> Note that the provider conformance tests require some advanced setup. The test
+> requires that at least one of each kind of managed resource exists and is
+> ready (in the status condition sense).
 
 This repository maintains a branch for each version of Crossplane that the
 conformance test suite supports. For example branch `1.2` will test conformance
