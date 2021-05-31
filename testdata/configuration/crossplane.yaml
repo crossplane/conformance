@@ -8,5 +8,5 @@ spec:
   crossplane:
     version: ">=v1.1.0"
   dependsOn:
-    - provider: negz/provider-nop
-      version: "v0.1.0"
+    - provider: crossplane/provider-nop
+      version: "main"

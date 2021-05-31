@@ -54,8 +54,7 @@ func TestConfiguration(t *testing.T) {
 		},
 	}
 
-	// The crossplane-conformance provider depends on negz/provider-nop.
-	prv := &pkgv1.Provider{ObjectMeta: metav1.ObjectMeta{Name: "negz-provider-nop"}}
+	prv := &pkgv1.Provider{ObjectMeta: metav1.ObjectMeta{Name: "crossplane-provider-nop"}}
 
 	if err := kube.Create(ctx, cfg); err != nil {
 		t.Fatalf("Create configuration %q: %v", cfg.GetName(), err)
