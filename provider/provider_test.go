@@ -368,10 +368,6 @@ func SubtestForManagedResourceCRD(crd *kextv1.CustomResourceDefinition) func(t *
 								{Raw: []byte(`"Delete"`)},
 							},
 						},
-						// TODO(negz): Ensure that 'name' defaults to 'default'
-						// once we expect providers to be built against
-						// crossplane-runtime v0.14+, which will includ3
-						// https://github.com/crossplane/crossplane-runtime/pull/255
 						"providerConfigRef": {
 							Type:       "object",
 							Required:   []string{"name"},
@@ -418,6 +414,14 @@ func SubtestForManagedResourceCRD(crd *kextv1.CustomResourceDefinition) func(t *
 			// spec fields we're concerned with are, but fields like 'forProvider'
 			// often are.
 			internal.IgnoreFieldsOfMapKey("spec", "Required"),
+
+			// TODO(negz): Verify that provider config and deletion
+			// policy defaulting is in place once providers have had
+			// enough time to update to runtime v0.14 (which is not
+			// yet released at the time of writing).
+			// https://github.com/crossplane/crossplane-runtime/pull/255
+			internal.IgnoreFieldsOfMapKey("providerConfigRef", "Default"),
+			internal.IgnoreFieldsOfMapKey("deletionPolicy", "Default"),
 
 			// We're only concerned with the spec and status fields that we expect
 			// all managed resources to include.
