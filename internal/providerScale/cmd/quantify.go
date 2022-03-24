@@ -3,15 +3,17 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"time"
+
 	"github.com/crossplane/conformance/internal/providerScale/cmd/common"
 	"github.com/crossplane/conformance/internal/providerScale/cmd/managed"
-	"time"
 
 	"github.com/prometheus/common/model"
 
 	"github.com/spf13/cobra"
 )
 
+// QuantifyOptions represents the options of quantify command
 type QuantifyOptions struct {
 	providerPod       string
 	providerNamespace string
@@ -24,12 +26,13 @@ type QuantifyOptions struct {
 	clean             bool
 }
 
+// NewCmdQuantify creates a cobra command
 func NewCmdQuantify() *cobra.Command {
 	o := QuantifyOptions{}
 	o.cmd = &cobra.Command{
-		Use:     fmt.Sprintf("Quantify the performance metrics"),
+		Use:     "Quantify the performance metrics",
 		Short:   "quantify",
-		Example: fmt.Sprintf("Example"),
+		Example: "Example",
 		RunE:    o.Run,
 	}
 
@@ -43,6 +46,7 @@ func NewCmdQuantify() *cobra.Command {
 	return o.cmd
 }
 
+// Run executes the quantify command's tasks.
 func (o *QuantifyOptions) Run(_ *cobra.Command, _ []string) error {
 	o.startTime = time.Now()
 	fmt.Printf("Experiment Started %v\n\n", o.startTime)
@@ -54,12 +58,12 @@ func (o *QuantifyOptions) Run(_ *cobra.Command, _ []string) error {
 	fmt.Printf("\nExperiment Ended %v\n\n", o.endTime)
 	fmt.Printf("Results\n------------------------------------------------------------\n")
 	fmt.Printf("Experiment Duration: %f seconds\n", o.endTime.Sub(o.startTime).Seconds())
-	queryResultCpu, err := o.CollectData(fmt.Sprintf(`sum(node_namespace_pod_container:container_cpu_usage_seconds_total:sum_irate{pod="%s", namespace="%s"})*100`,
+	queryResultCPU, err := o.CollectData(fmt.Sprintf(`sum(node_namespace_pod_container:container_cpu_usage_seconds_total:sum_irate{pod="%s", namespace="%s"})*100`,
 		o.providerPod, o.providerNamespace))
 	if err != nil {
 		return err
 	}
-	cpuResult, err := common.ConstructResult(queryResultCpu)
+	cpuResult, err := common.ConstructResult(queryResultCPU)
 	if err != nil {
 		return err
 	}
@@ -84,6 +88,7 @@ func (o *QuantifyOptions) Run(_ *cobra.Command, _ []string) error {
 	return nil
 }
 
+// CollectData sends query and collect data by using the prometheus client
 func (o *QuantifyOptions) CollectData(query string) (model.Value, error) {
 	client := common.ConstructPrometheusClient(o.address)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)

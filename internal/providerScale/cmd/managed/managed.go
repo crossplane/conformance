@@ -2,19 +2,23 @@ package managed
 
 import (
 	"fmt"
-	"github.com/crossplane/conformance/internal/providerScale/cmd/common"
 	"os/exec"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/crossplane/conformance/internal/providerScale/cmd/common"
 )
 
-func RunExperiment(mrTemplatePaths map[string]int, clean bool) ([]*common.Result, error) {
-	var timeToReadinessResults []*common.Result
+// RunExperiment runs the experiment according to command-line inputs.
+// Firstly the input manifests are deployed. After the all MRs are ready, time to readiness metrics are calculated.
+// Then, by default, all deployed MRs are deleted.
+func RunExperiment(mrTemplatePaths map[string]int, clean bool) ([]*common.Result, error) { //nolint:gocyclo
+	var timeToReadinessResults []*common.Result //nolint:prealloc
 
 	for mrPath, count := range mrTemplatePaths {
 		for i := 1; i <= count; i++ {
-			cmd, err := exec.Command("./internal/providerScale/cmd/managed/manage-mr.sh", "apply", mrPath, strconv.Itoa(i)).Output()
+			cmd, err := exec.Command("./internal/providerScale/cmd/managed/manage-mr.sh", "apply", mrPath, strconv.Itoa(i)).Output() //nolint:gosec
 			fmt.Print(string(cmd))
 			if err != nil {
 				return nil, err
@@ -22,9 +26,7 @@ func RunExperiment(mrTemplatePaths map[string]int, clean bool) ([]*common.Result
 		}
 	}
 	for mrPath, count := range mrTemplatePaths {
-		if err := checkReadiness(mrPath, count); err != nil {
-			return nil, err
-		}
+		checkReadiness(mrPath, count)
 	}
 	for mrPath, count := range mrTemplatePaths {
 		timeToReadinessResult, err := calculateReadinessDuration(mrPath, count)
@@ -37,7 +39,7 @@ func RunExperiment(mrTemplatePaths map[string]int, clean bool) ([]*common.Result
 		for mrPath, count := range mrTemplatePaths {
 			fmt.Println("Deleting resources...")
 			for i := 1; i <= count; i++ {
-				cmd, err := exec.Command("./internal/providerScale/cmd/managed/manage-mr.sh", "delete", mrPath, strconv.Itoa(i)).Output()
+				cmd, err := exec.Command("./internal/providerScale/cmd/managed/manage-mr.sh", "delete", mrPath, strconv.Itoa(i)).Output() //nolint:gosec
 				fmt.Print(string(cmd))
 				if err != nil {
 					return nil, err
@@ -48,11 +50,11 @@ func RunExperiment(mrTemplatePaths map[string]int, clean bool) ([]*common.Result
 			i := 1
 			for i <= count {
 				fmt.Println("Checking deletion of resources...")
-				cmd, err := exec.Command("./internal/providerScale/cmd/managed/checkDeletion.sh", mrPath, strconv.Itoa(i)).Output()
+				cmd, err := exec.Command("./internal/providerScale/cmd/managed/checkDeletion.sh", mrPath, strconv.Itoa(i)).Output() //nolint:gosec
 				if err != nil {
 					return nil, err
 				}
-				if string(cmd) != "" {
+				if len(cmd) != 0 {
 					time.Sleep(10 * time.Second)
 					continue
 				}
@@ -63,30 +65,28 @@ func RunExperiment(mrTemplatePaths map[string]int, clean bool) ([]*common.Result
 	return timeToReadinessResults, nil
 }
 
-func checkReadiness(mrPath string, count int) error {
+func checkReadiness(mrPath string, count int) {
 	i := 1
 	for i <= count {
 		fmt.Println("Checking readiness of resources...")
-		isReady, _ := exec.Command("./internal/providerScale/cmd/managed/checkReadiness.sh", mrPath, strconv.Itoa(i)).Output()
+		isReady, _ := exec.Command("./internal/providerScale/cmd/managed/checkReadiness.sh", mrPath, strconv.Itoa(i)).Output() //nolint:gosec
 		if !strings.Contains(string(isReady), "True") {
 			time.Sleep(10 * time.Second)
 			continue
 		}
 		i++
 	}
-
-	return nil
 }
 
 func calculateReadinessDuration(mrPath string, count int) (*common.Result, error) {
 	result := &common.Result{}
 	for i := 1; i <= count; i++ {
 		fmt.Println("Calculating readiness durations of resources...")
-		creationTimeByte, err := exec.Command("./internal/providerScale/cmd/managed/getCreationTime.sh", mrPath, strconv.Itoa(i)).Output()
+		creationTimeByte, err := exec.Command("./internal/providerScale/cmd/managed/getCreationTime.sh", mrPath, strconv.Itoa(i)).Output() //nolint:gosec
 		if err != nil {
 			return nil, err
 		}
-		readinessTimeByte, err := exec.Command("./internal/providerScale/cmd/managed/getReadinessTime.sh", mrPath, strconv.Itoa(i)).Output()
+		readinessTimeByte, err := exec.Command("./internal/providerScale/cmd/managed/getReadinessTime.sh", mrPath, strconv.Itoa(i)).Output() //nolint:gosec
 		if err != nil {
 			return nil, err
 		}
@@ -109,4 +109,3 @@ func calculateReadinessDuration(mrPath string, count int) (*common.Result, error
 	result.Average, result.Peak = common.CalculateAverageAndPeak(result.Data)
 	return result, nil
 }
-

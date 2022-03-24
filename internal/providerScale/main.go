@@ -1,8 +1,9 @@
 package main
 
 import (
-	"github.com/crossplane/conformance/internal/providerScale/cmd"
 	"os"
+
+	"github.com/crossplane/conformance/internal/providerScale/cmd"
 
 	"github.com/spf13/pflag"
 )
