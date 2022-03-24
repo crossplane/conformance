@@ -23,7 +23,7 @@ import (
 )
 
 func main() {
-	pflag.CommandLine = pflag.NewFlagSet("quantify", pflag.ExitOnError)
+	pflag.CommandLine = pflag.NewFlagSet("provider-scale", pflag.ExitOnError)
 	root := cmd.NewCmdQuantify()
 	if err := root.Execute(); err != nil {
 		os.Exit(1)

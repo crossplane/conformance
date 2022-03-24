@@ -44,18 +44,30 @@ type QuantifyOptions struct {
 func NewCmdQuantify() *cobra.Command {
 	o := QuantifyOptions{}
 	o.cmd = &cobra.Command{
-		Use:     "Quantify the performance metrics",
-		Short:   "quantify",
-		Example: "Example",
-		RunE:    o.Run,
+		Use: "provider-scale [flags]",
+		Short: "This tool collects CPU & Memory Utilization and time to readiness of MRs metrics of providers and " +
+			"reports them. When you execute this tool an end-to-end experiment will run.",
+		Example: "provider-scale --mrs ./internal/providerScale/manifests/virtualnetwork.yaml=2 " +
+			"--mrs ./internal/providerScale/manifests/loadbalancer.yaml=2" +
+			"--provider-pod crossplane-provider-jet-azure " +
+			"--provider-namespace crossplane-system",
+		RunE: o.Run,
 	}
 
-	o.cmd.Flags().StringVar(&o.providerPod, "provider-pod", "", "provider pod name...")
-	o.cmd.Flags().StringVar(&o.providerNamespace, "provider-namespace", "crossplane-system", "provider namespace...")
-	o.cmd.Flags().StringToIntVar(&o.mrPaths, "mrs", map[string]int{}, "mr paths...")
-	o.cmd.Flags().StringVar(&o.address, "address", "http://localhost:9090", "address...")
-	o.cmd.Flags().DurationVar(&o.stepDuration, "step-duration", 30*time.Second, "step duration...")
-	o.cmd.Flags().BoolVar(&o.clean, "clean", true, "clean cluster...")
+	o.cmd.Flags().StringVar(&o.providerPod, "provider-pod", "", "Pod name of provider")
+	o.cmd.Flags().StringVar(&o.providerNamespace, "provider-namespace", "crossplane-system",
+		"Namespace name of provider")
+	o.cmd.Flags().StringToIntVar(&o.mrPaths, "mrs", nil, "Managed resource templates that will be deployed")
+	o.cmd.Flags().StringVar(&o.address, "address", "http://localhost:9090", "Address of Prometheus service")
+	o.cmd.Flags().DurationVar(&o.stepDuration, "step-duration", 30*time.Second, "Step duration between two data points")
+	o.cmd.Flags().BoolVar(&o.clean, "clean", true, "Delete deployed MRs")
+
+	if err := o.cmd.MarkFlagRequired("provider-pod"); err != nil {
+		panic(err)
+	}
+	if err := o.cmd.MarkFlagRequired("mrs"); err != nil {
+		panic(err)
+	}
 
 	return o.cmd
 }
@@ -95,8 +107,8 @@ func (o *QuantifyOptions) Run(_ *cobra.Command, _ []string) error {
 		fmt.Printf("Average Time to Readiness of %s: %f \n", timeToReadinessResult.Metric, timeToReadinessResult.Average)
 		fmt.Printf("Peak Time to Readiness of %s: %f \n", timeToReadinessResult.Metric, timeToReadinessResult.Peak)
 	}
-	fmt.Printf("Average CPU: %f %% \n", cpuResult.Average)
-	fmt.Printf("Peak CPU: %f %% \n", cpuResult.Peak)
+	fmt.Printf("Average CPU: %f seconds \n", cpuResult.Average)
+	fmt.Printf("Peak CPU: %f seconds \n", cpuResult.Peak)
 	fmt.Printf("Average Memory: %f Bytes \n", memoryResult.Average)
 	fmt.Printf("Peak Memory: %f Bytes \n", memoryResult.Peak)
 	return nil
