@@ -1,0 +1,18 @@
+apiVersion: network.azure.jet.crossplane.io/v1alpha2
+kind: VirtualNetwork
+metadata:
+  name: test-{{SUFFIX}}
+spec:
+  forProvider:
+    addressSpace:
+    - 10.0.0.0/16
+    dnsServers:
+    - 10.0.0.1
+    - 10.0.0.2
+    - 10.0.0.3
+    location: East US
+    resourceGroupName: example
+    tags:
+      experiment: "2"
+  providerConfigRef:
+    name: example
