@@ -20,6 +20,8 @@ import (
 	"strconv"
 	"time"
 
+	log "github.com/sirupsen/logrus"
+
 	"github.com/prometheus/common/model"
 
 	"github.com/prometheus/client_golang/api"
@@ -36,6 +38,7 @@ type Data struct {
 type Result struct {
 	Data          []Data
 	Metric        string
+	MetricUnit    string
 	Peak, Average float64
 }
 
@@ -63,13 +66,11 @@ func ConstructTimeRange(startTime, endTime time.Time, stepDuration time.Duration
 }
 
 // ConstructResult creates a Result object from collected data
-func ConstructResult(value model.Value) (*Result, error) {
+func ConstructResult(value model.Value, metric, unit string) (*Result, error) {
 	result := &Result{}
 	matrix := value.(model.Matrix)
 
 	for _, m := range matrix {
-		result.Metric = m.Metric.String()
-
 		for _, v := range m.Values {
 			valueNum, err := strconv.ParseFloat(v.Value.String(), 64)
 			if err != nil {
@@ -80,6 +81,8 @@ func ConstructResult(value model.Value) (*Result, error) {
 	}
 
 	result.Average, result.Peak = CalculateAverageAndPeak(result.Data)
+	result.Metric = metric
+	result.MetricUnit = unit
 	return result, nil
 }
 
@@ -94,4 +97,9 @@ func CalculateAverageAndPeak(data []Data) (float64, float64) {
 		}
 	}
 	return sum / float64(len(data)), peak
+}
+
+func (r Result) String() {
+	log.Info(fmt.Sprintf("Average %s: %f %s \n", r.Metric, r.Average, r.MetricUnit))
+	log.Info(fmt.Sprintf("Peak %s: %f %s \n", r.Metric, r.Peak, r.MetricUnit))
 }

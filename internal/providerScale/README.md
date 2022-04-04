@@ -31,6 +31,4 @@ provider-scale --mrs ./internal/providerScale/manifests/virtualnetwork.yaml=2
 
 With this input, two virtualnetwork & loadbalancer MRs will be deployed to the cluster.
 
-**_Note: In template manifests the name must be: `test-{{SUFFIX}}`_**
-
 [one-pager]: https://github.com/crossplane/crossplane/pull/2983

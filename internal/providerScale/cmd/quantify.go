@@ -24,6 +24,8 @@ import (
 
 	"github.com/prometheus/common/model"
 
+	log "github.com/sirupsen/logrus"
+
 	"github.com/spf13/cobra"
 )
 
@@ -75,21 +77,21 @@ func NewCmdQuantify() *cobra.Command {
 // Run executes the quantify command's tasks.
 func (o *QuantifyOptions) Run(_ *cobra.Command, _ []string) error {
 	o.startTime = time.Now()
-	fmt.Printf("Experiment Started %v\n\n", o.startTime)
+	log.Infof("Experiment Started %v\n\n", o.startTime)
 	timeToReadinessResults, err := managed.RunExperiment(o.mrPaths, o.clean)
 	if err != nil {
 		return err
 	}
 	o.endTime = time.Now()
-	fmt.Printf("\nExperiment Ended %v\n\n", o.endTime)
-	fmt.Printf("Results\n------------------------------------------------------------\n")
-	fmt.Printf("Experiment Duration: %f seconds\n", o.endTime.Sub(o.startTime).Seconds())
+	log.Infof("\nExperiment Ended %v\n\n", o.endTime)
+	log.Infof("Results\n------------------------------------------------------------\n")
+	log.Infof("Experiment Duration: %f seconds\n", o.endTime.Sub(o.startTime).Seconds())
 	queryResultCPU, err := o.CollectData(fmt.Sprintf(`sum(node_namespace_pod_container:container_cpu_usage_seconds_total:sum_irate{pod="%s", namespace="%s"})*100`,
 		o.providerPod, o.providerNamespace))
 	if err != nil {
 		return err
 	}
-	cpuResult, err := common.ConstructResult(queryResultCPU)
+	cpuResult, err := common.ConstructResult(queryResultCPU, "CPU", "seconds")
 	if err != nil {
 		return err
 	}
@@ -98,19 +100,16 @@ func (o *QuantifyOptions) Run(_ *cobra.Command, _ []string) error {
 	if err != nil {
 		return err
 	}
-	memoryResult, err := common.ConstructResult(queryResultMemory)
+	memoryResult, err := common.ConstructResult(queryResultMemory, "Memory", "Bytes")
 	if err != nil {
 		return err
 	}
 
 	for _, timeToReadinessResult := range timeToReadinessResults {
-		fmt.Printf("Average Time to Readiness of %s: %f \n", timeToReadinessResult.Metric, timeToReadinessResult.Average)
-		fmt.Printf("Peak Time to Readiness of %s: %f \n", timeToReadinessResult.Metric, timeToReadinessResult.Peak)
+		timeToReadinessResult.String()
 	}
-	fmt.Printf("Average CPU: %f seconds \n", cpuResult.Average)
-	fmt.Printf("Peak CPU: %f seconds \n", cpuResult.Peak)
-	fmt.Printf("Average Memory: %f Bytes \n", memoryResult.Average)
-	fmt.Printf("Peak Memory: %f Bytes \n", memoryResult.Peak)
+	cpuResult.String()
+	memoryResult.String()
 	return nil
 }
 
@@ -126,7 +125,7 @@ func (o *QuantifyOptions) CollectData(query string) (model.Value, error) {
 		return nil, err
 	}
 	if len(warnings) > 0 {
-		fmt.Printf("Warnings: %v\n", warnings)
+		log.Infof("Warnings: %v\n", warnings)
 	}
 	return result, err
 }

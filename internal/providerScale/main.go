@@ -17,9 +17,9 @@ package main
 import (
 	"os"
 
-	"github.com/crossplane/conformance/internal/providerScale/cmd"
-
 	"github.com/spf13/pflag"
+
+	"github.com/crossplane/conformance/internal/providerScale/cmd"
 )
 
 func main() {

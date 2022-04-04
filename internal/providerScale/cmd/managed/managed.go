@@ -15,11 +15,24 @@
 package managed
 
 import (
+	"context"
 	"fmt"
-	"os/exec"
-	"strconv"
+	"io/ioutil"
 	"strings"
 	"time"
+
+	log "github.com/sirupsen/logrus"
+
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+
+	"gopkg.in/yaml.v2"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+
+	"k8s.io/client-go/dynamic"
+
+	ctrl "sigs.k8s.io/controller-runtime"
 
 	"github.com/crossplane/conformance/internal/providerScale/cmd/common"
 )
@@ -27,99 +40,221 @@ import (
 // RunExperiment runs the experiment according to command-line inputs.
 // Firstly the input manifests are deployed. After the all MRs are ready, time to readiness metrics are calculated.
 // Then, by default, all deployed MRs are deleted.
-func RunExperiment(mrTemplatePaths map[string]int, clean bool) ([]*common.Result, error) { //nolint:gocyclo
-	var timeToReadinessResults []*common.Result //nolint:prealloc
+func RunExperiment(mrTemplatePaths map[string]int, clean bool) ([]common.Result, error) { //nolint:gocyclo
+	var timeToReadinessResults []common.Result //nolint:prealloc
 
-	for mrPath, count := range mrTemplatePaths {
-		for i := 1; i <= count; i++ {
-			cmd, err := exec.Command("./internal/providerScale/cmd/managed/manage-mr.sh", "apply", mrPath, strconv.Itoa(i)).Output() //nolint:gosec
-			fmt.Print(string(cmd))
-			if err != nil {
-				return nil, err
-			}
-		}
+	client := createDynamicClient()
+
+	if err := applyResources(client, mrTemplatePaths); err != nil {
+		return nil, err
 	}
-	for mrPath, count := range mrTemplatePaths {
-		checkReadiness(mrPath, count)
+
+	if err := checkReadiness(client, mrTemplatePaths); err != nil {
+		return nil, err
 	}
-	for mrPath, count := range mrTemplatePaths {
-		timeToReadinessResult, err := calculateReadinessDuration(mrPath, count)
-		if err != nil {
+
+	timeToReadinessResults, err := calculateReadinessDuration(client, mrTemplatePaths)
+	if err != nil {
+		return nil, err
+	}
+
+	if clean {
+		log.Info("Deleting resources...")
+		if err := deleteResources(client, mrTemplatePaths); err != nil {
 			return nil, err
 		}
-		timeToReadinessResults = append(timeToReadinessResults, timeToReadinessResult)
-	}
-	if clean {
-		for mrPath, count := range mrTemplatePaths {
-			fmt.Println("Deleting resources...")
-			for i := 1; i <= count; i++ {
-				cmd, err := exec.Command("./internal/providerScale/cmd/managed/manage-mr.sh", "delete", mrPath, strconv.Itoa(i)).Output() //nolint:gosec
-				fmt.Print(string(cmd))
-				if err != nil {
-					return nil, err
-				}
-			}
-		}
-		for mrPath, count := range mrTemplatePaths {
-			i := 1
-			for i <= count {
-				fmt.Println("Checking deletion of resources...")
-				cmd, err := exec.Command("./internal/providerScale/cmd/managed/checkDeletion.sh", mrPath, strconv.Itoa(i)).Output() //nolint:gosec
-				if err != nil {
-					return nil, err
-				}
-				if len(cmd) != 0 {
-					time.Sleep(10 * time.Second)
-					continue
-				}
-				i++
-			}
+		log.Info("Checking deletion of resources...")
+		if err := checkDeletion(client, mrTemplatePaths); err != nil {
+			return nil, err
 		}
 	}
 	return timeToReadinessResults, nil
 }
 
-func checkReadiness(mrPath string, count int) {
-	i := 1
-	for i <= count {
-		fmt.Println("Checking readiness of resources...")
-		isReady, _ := exec.Command("./internal/providerScale/cmd/managed/checkReadiness.sh", mrPath, strconv.Itoa(i)).Output() //nolint:gosec
-		if !strings.Contains(string(isReady), "True") {
-			time.Sleep(10 * time.Second)
-			continue
+func applyResources(client dynamic.Interface, mrTemplatePaths map[string]int) error {
+	for mrPath, count := range mrTemplatePaths {
+		m, err := readYamlFile(mrPath)
+		if err != nil {
+			return err
 		}
-		i++
+		o := prepareUnstructuredObject(m)
+
+		for i := 1; i <= count; i++ {
+			o["metadata"].(map[string]interface{})["name"] = fmt.Sprintf("test-%d", i)
+			_, err := client.Resource(prepareGvk(m)).Create(context.TODO(), &unstructured.Unstructured{Object: o}, metav1.CreateOptions{})
+			if err != nil {
+				return err
+			}
+			log.Info(fmt.Sprintf("%s/%s was successfully created!\n", m["kind"], o["metadata"].(map[string]interface{})["name"]))
+		}
+	}
+	return nil
+}
+
+func deleteResources(client dynamic.Interface, mrTemplatePaths map[string]int) error {
+	for mrPath := range mrTemplatePaths {
+		m, err := readYamlFile(mrPath)
+		if err != nil {
+			return err
+		}
+
+		background := metav1.DeletePropagationBackground
+		if err := client.Resource(prepareGvk(m)).DeleteCollection(context.TODO(),
+			metav1.DeleteOptions{PropagationPolicy: &background}, metav1.ListOptions{}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func checkReadiness(client dynamic.Interface, mrTemplatePaths map[string]int) error {
+	for mrPath := range mrTemplatePaths {
+		m, err := readYamlFile(mrPath)
+		if err != nil {
+			return err
+		}
+
+		for {
+			log.Info("Checking readiness of resources...")
+			list, err := client.Resource(prepareGvk(m)).List(context.TODO(), metav1.ListOptions{})
+			if err != nil {
+				return err
+			}
+			if isReady(list) {
+				break
+			}
+			time.Sleep(10 * time.Second)
+		}
+	}
+	return nil
+}
+
+func isReady(list *unstructured.UnstructuredList) bool {
+	for _, l := range list.Items {
+		if l.Object["status"] == nil {
+			return false
+		}
+		conditions := l.Object["status"].(map[string]interface{})["conditions"].([]interface{})
+
+		status := ""
+		for _, condition := range conditions {
+			c := condition.(map[string]interface{})
+			if c["type"] == "Ready" {
+				status = c["status"].(string)
+			}
+		}
+
+		if status == "False" || status == "" {
+			return false
+		}
+	}
+	return true
+}
+
+func calculateReadinessDuration(client dynamic.Interface, mrTemplatePaths map[string]int) ([]common.Result, error) {
+	var results []common.Result //nolint:prealloc
+	for mrPath := range mrTemplatePaths {
+		log.Info("Calculating readiness time of resources...")
+		var result common.Result
+
+		m, err := readYamlFile(mrPath)
+		if err != nil {
+			return nil, err
+		}
+
+		list, err := client.Resource(prepareGvk(m)).List(context.TODO(), metav1.ListOptions{})
+		if err != nil {
+			return nil, err
+		}
+		for _, l := range list.Items {
+			readinessTime := metav1.Time{}
+			creationTimestamp := l.GetCreationTimestamp()
+			conditions := l.Object["status"].(map[string]interface{})["conditions"].([]interface{})
+
+			for _, condition := range conditions {
+				c := condition.(map[string]interface{})
+
+				if c["type"] == "Ready" && c["status"] == "True" {
+					t, err := time.Parse(time.RFC3339, c["lastTransitionTime"].(string))
+					if err != nil {
+						return nil, err
+					}
+					readinessTime.Time = t
+				}
+
+				diff := readinessTime.Sub(creationTimestamp.Time)
+				result.Data = append(result.Data, common.Data{Value: diff.Seconds()})
+				break
+			}
+		}
+		result.Metric = fmt.Sprintf("Time to Readiness of %s", m["kind"])
+		result.MetricUnit = "seconds"
+		result.Average, result.Peak = common.CalculateAverageAndPeak(result.Data)
+		results = append(results, result)
+	}
+	return results, nil
+}
+
+func checkDeletion(client dynamic.Interface, mrTemplatePaths map[string]int) error {
+	for mrPath := range mrTemplatePaths {
+		m, err := readYamlFile(mrPath)
+		if err != nil {
+			return err
+		}
+
+		for {
+			log.Info("Checking deletion of resources...")
+			list, err := client.Resource(prepareGvk(m)).List(context.TODO(), metav1.ListOptions{})
+			if err != nil {
+				return err
+			}
+			if len(list.Items) == 0 {
+				break
+			}
+			time.Sleep(10 * time.Second)
+		}
+	}
+	return nil
+}
+
+func prepareGvk(m map[interface{}]interface{}) schema.GroupVersionResource {
+	apiVersion := strings.Split(m["apiVersion"].(string), "/")
+	kind := strings.ToLower(m["kind"].(string))
+	return schema.GroupVersionResource{
+		Group:    apiVersion[0],
+		Version:  apiVersion[1],
+		Resource: fmt.Sprintf("%ss", kind),
 	}
 }
 
-func calculateReadinessDuration(mrPath string, count int) (*common.Result, error) {
-	result := &common.Result{}
-	for i := 1; i <= count; i++ {
-		fmt.Println("Calculating readiness durations of resources...")
-		creationTimeByte, err := exec.Command("./internal/providerScale/cmd/managed/getCreationTime.sh", mrPath, strconv.Itoa(i)).Output() //nolint:gosec
-		if err != nil {
-			return nil, err
+func prepareUnstructuredObject(m map[interface{}]interface{}) map[string]interface{} {
+	result := map[string]interface{}{}
+	for k, v := range m {
+		t, ok := v.(map[interface{}]interface{})
+		if ok {
+			result[k.(string)] = prepareUnstructuredObject(t)
+		} else {
+			result[k.(string)] = v
 		}
-		readinessTimeByte, err := exec.Command("./internal/providerScale/cmd/managed/getReadinessTime.sh", mrPath, strconv.Itoa(i)).Output() //nolint:gosec
-		if err != nil {
-			return nil, err
-		}
-		creationTimeString := string(creationTimeByte)
-		creationTimeString = creationTimeString[:strings.Index(creationTimeString, `Z`)+1]
-		creationTime, err := time.Parse(time.RFC3339, creationTimeString)
-		if err != nil {
-			return nil, err
-		}
-		readinessTimeString := string(readinessTimeByte)
-		readinessTimeString = readinessTimeString[strings.Index(readinessTimeString, `"`)+1 : strings.Index(readinessTimeString, `Z`)+1]
-		readinessTime, err := time.Parse(time.RFC3339, readinessTimeString)
-		if err != nil {
-			return nil, err
-		}
-		diff := readinessTime.Sub(creationTime)
-		result.Data = append(result.Data, common.Data{Value: diff.Seconds()})
 	}
-	result.Metric = mrPath
-	result.Average, result.Peak = common.CalculateAverageAndPeak(result.Data)
-	return result, nil
+	return result
+}
+
+func readYamlFile(fileName string) (map[interface{}]interface{}, error) {
+	yamlFile, err := ioutil.ReadFile(fileName) //nolint:gosec
+	if err != nil {
+		return nil, err
+	}
+
+	m := make(map[interface{}]interface{})
+	err = yaml.Unmarshal(yamlFile, m)
+	if err != nil {
+		return nil, err
+	}
+
+	return m, nil
+}
+
+func createDynamicClient() dynamic.Interface {
+	return dynamic.NewForConfigOrDie(ctrl.GetConfigOrDie())
 }
