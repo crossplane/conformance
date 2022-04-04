@@ -42,6 +42,9 @@ submodules:
 	@git submodule sync
 	@git submodule update --init --recursive
 
+go.cachedir:
+	@go env GOCACHE
+
 .PHONY: reviewable submodules fallthrough
 
 # ====================================================================================
