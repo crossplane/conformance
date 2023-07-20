@@ -40,6 +40,7 @@ type QuantifyOptions struct {
 	endTime           time.Time
 	stepDuration      time.Duration
 	clean             bool
+	nodeIP            string
 }
 
 // NewCmdQuantify creates a cobra command
@@ -63,6 +64,7 @@ func NewCmdQuantify() *cobra.Command {
 	o.cmd.Flags().StringVar(&o.address, "address", "http://localhost:9090", "Address of Prometheus service")
 	o.cmd.Flags().DurationVar(&o.stepDuration, "step-duration", 30*time.Second, "Step duration between two data points")
 	o.cmd.Flags().BoolVar(&o.clean, "clean", true, "Delete deployed MRs")
+	o.cmd.Flags().StringVar(&o.nodeIP, "node", "", "Node IP")
 
 	if err := o.cmd.MarkFlagRequired("provider-pod"); err != nil {
 		panic(err)
@@ -86,30 +88,29 @@ func (o *QuantifyOptions) Run(_ *cobra.Command, _ []string) error {
 	log.Infof("\nExperiment Ended %v\n\n", o.endTime)
 	log.Infof("Results\n------------------------------------------------------------\n")
 	log.Infof("Experiment Duration: %f seconds\n", o.endTime.Sub(o.startTime).Seconds())
-	queryResultCPU, err := o.CollectData(fmt.Sprintf(`sum(node_namespace_pod_container:container_cpu_usage_seconds_total:sum_irate{pod="%s", namespace="%s"})*100`,
-		o.providerPod, o.providerNamespace))
-	if err != nil {
-		return err
-	}
-	cpuResult, err := common.ConstructResult(queryResultCPU, "CPU", "seconds")
-	if err != nil {
-		return err
-	}
+	time.Sleep(60 * time.Second)
 	queryResultMemory, err := o.CollectData(fmt.Sprintf(`sum(node_namespace_pod_container:container_memory_working_set_bytes{pod="%s", namespace="%s"})`,
 		o.providerPod, o.providerNamespace))
 	if err != nil {
 		return err
 	}
-	memoryResult, err := common.ConstructResult(queryResultMemory, "Memory", "Bytes")
+	memoryResult, err := common.ConstructResult(queryResultMemory, "Memory Working Set", "Bytes")
 	if err != nil {
 		return err
 	}
-
+	qureyResultCPURate, err := o.CollectData(fmt.Sprintf(`instance:node_cpu_utilisation:rate5m{instance="%s"} * 100`, o.nodeIP))
+	if err != nil {
+		return err
+	}
+	cpuRateResult, err := common.ConstructResult(qureyResultCPURate, "CPU Utilisation", "Rate")
+	if err != nil {
+		return err
+	}
 	for _, timeToReadinessResult := range timeToReadinessResults {
 		timeToReadinessResult.String()
 	}
-	cpuResult.String()
 	memoryResult.String()
+	cpuRateResult.String()
 	return nil
 }
 
@@ -119,7 +120,9 @@ func (o *QuantifyOptions) CollectData(query string) (model.Value, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	r := common.ConstructTimeRange(o.startTime, o.endTime, o.stepDuration)
+	// We continue to collect metrics after the tests were ended. Because
+	// the memory consumption sometimes increase after the tests completed.
+	r := common.ConstructTimeRange(o.startTime, o.endTime.Add(60*time.Second), o.stepDuration)
 	result, warnings, err := client.QueryRange(ctx, query, r)
 	if err != nil {
 		return nil, err

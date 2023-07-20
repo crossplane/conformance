@@ -15,23 +15,22 @@
 package managed
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"io/ioutil"
+	"os"
+	"os/exec"
 	"strings"
 	"time"
 
+	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
-
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-
 	"gopkg.in/yaml.v2"
-
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-
 	"k8s.io/client-go/dynamic"
-
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	"github.com/crossplane/conformance/internal/providerScale/cmd/common"
@@ -72,6 +71,14 @@ func RunExperiment(mrTemplatePaths map[string]int, clean bool) ([]common.Result,
 }
 
 func applyResources(client dynamic.Interface, mrTemplatePaths map[string]int) error {
+	file, err := os.Create(fmt.Sprintf("/tmp/test.yaml"))
+	if err != nil {
+		return err
+	}
+	if err := file.Close(); err != nil {
+		return err
+	}
+
 	for mrPath, count := range mrTemplatePaths {
 		m, err := readYamlFile(mrPath)
 		if err != nil {
@@ -79,13 +86,42 @@ func applyResources(client dynamic.Interface, mrTemplatePaths map[string]int) er
 		}
 		o := prepareUnstructuredObject(m)
 
+		f, err := os.OpenFile("/tmp/test.yaml", os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
+		if err != nil {
+			return err
+		}
+
 		for i := 1; i <= count; i++ {
 			o["metadata"].(map[string]interface{})["name"] = fmt.Sprintf("test-%d", i)
-			_, err := client.Resource(prepareGvk(m)).Create(context.TODO(), &unstructured.Unstructured{Object: o}, metav1.CreateOptions{})
+
+			b, err := yaml.Marshal(o)
 			if err != nil {
 				return err
 			}
+
+			if _, err := f.Write(b); err != nil {
+				return err
+			}
+
+			if _, err := f.WriteString("\n---\n\n"); err != nil {
+				return err
+			}
+
 			log.Info(fmt.Sprintf("%s/%s was successfully created!\n", m["kind"], o["metadata"].(map[string]interface{})["name"]))
+		}
+
+		cmd := exec.Command("bash", "-c", fmt.Sprintf(`"kubectl" apply -f /tmp/test.yaml`)) // #nosec G204
+		stdout, _ := cmd.StdoutPipe()
+		if err := cmd.Start(); err != nil {
+			return errors.Wrap(err, "cannot start kubectl")
+		}
+		sc := bufio.NewScanner(stdout)
+		sc.Split(bufio.ScanLines)
+		for sc.Scan() {
+			fmt.Println(sc.Text())
+		}
+		if err := cmd.Wait(); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -180,11 +216,11 @@ func calculateReadinessDuration(client dynamic.Interface, mrTemplatePaths map[st
 						return nil, err
 					}
 					readinessTime.Time = t
-				}
 
-				diff := readinessTime.Sub(creationTimestamp.Time)
-				result.Data = append(result.Data, common.Data{Value: diff.Seconds()})
-				break
+					diff := readinessTime.Sub(creationTimestamp.Time)
+					result.Data = append(result.Data, common.Data{Value: diff.Seconds()})
+					break
+				}
 			}
 		}
 		result.Metric = fmt.Sprintf("Time to Readiness of %s", m["kind"])
@@ -218,12 +254,18 @@ func checkDeletion(client dynamic.Interface, mrTemplatePaths map[string]int) err
 }
 
 func prepareGvk(m map[interface{}]interface{}) schema.GroupVersionResource {
+	suffix := "s"
 	apiVersion := strings.Split(m["apiVersion"].(string), "/")
 	kind := strings.ToLower(m["kind"].(string))
+
+	if kind[len(kind)-1] == 'y' {
+		kind = kind[:len(kind)-1]
+		suffix = "ies"
+	}
 	return schema.GroupVersionResource{
 		Group:    apiVersion[0],
 		Version:  apiVersion[1],
-		Resource: fmt.Sprintf("%ss", kind),
+		Resource: fmt.Sprintf("%s%s", kind, suffix),
 	}
 }
 
