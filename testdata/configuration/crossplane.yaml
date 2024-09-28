@@ -6,7 +6,7 @@ metadata:
     crossplane.io/test: crossplane-conformance
 spec:
   crossplane:
-    version: ">=v1.1.0"
+    version: ">=v1.15.0"
   dependsOn:
-    - provider: negz/provider-nop
-      version: "v0.1.0"
+    - provider: xpkg.upbound.io/crossplane-contrib/provider-nop
+      version: "v0.2.1"

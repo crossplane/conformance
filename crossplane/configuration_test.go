@@ -25,7 +25,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 
 	"github.com/crossplane/crossplane-runtime/pkg/resource"
 	pkgv1 "github.com/crossplane/crossplane/apis/pkg/v1"
@@ -48,14 +48,14 @@ func TestConfiguration(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{Name: internal.SuiteName},
 		Spec: pkgv1.ConfigurationSpec{
 			PackageSpec: pkgv1.PackageSpec{
-				Package:                     "crossplane/conformance-testdata-configuration:latest",
-				IgnoreCrossplaneConstraints: pointer.BoolPtr(true),
+				Package:                     "index.docker.io/crossplane/conformance-testdata-configuration:latest",
+				IgnoreCrossplaneConstraints: ptr.To(true),
 			},
 		},
 	}
 
-	// The crossplane-conformance provider depends on negz/provider-nop.
-	prv := &pkgv1.Provider{ObjectMeta: metav1.ObjectMeta{Name: "negz-provider-nop"}}
+	// The crossplane-conformance provider depends on xpkg.upbound.io/crossplane-contrib/provider-nop.
+	prv := &pkgv1.Provider{ObjectMeta: metav1.ObjectMeta{Name: "crossplane-contrib-provider-nop"}}
 
 	if err := kube.Create(ctx, cfg); err != nil {
 		t.Fatalf("Create configuration %q: %v", cfg.GetName(), err)

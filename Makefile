@@ -11,31 +11,21 @@ PLATFORMS ?= linux_amd64 linux_arm64
 # Setup Go
 NPROCS ?= 1
 GO_TEST_PARALLEL := $(shell echo $$(( $(NPROCS) / 2 )))
-GO_TEST_PACKAGES = $(GO_PROJECT)/crossplane $(GO_PROJECT)/provider
+GO_TEST_PACKAGES = $(GO_PROJECT)/crossplane
 GO_LDFLAGS += -X $(GO_PROJECT)/internal.Version=$(VERSION)
-GO_SUBDIRS += internal crossplane provider
+GO_SUBDIRS += internal crossplane
 GO111MODULE = on
 -include build/makelib/golang.mk
 
 # Setup Images
 DOCKER_REGISTRY = crossplane
-IMAGES = conformance provider-conformance
-OSBASEIMAGE = gcr.io/distroless/static:nonroot         
+IMAGES = conformance
+OSBASEIMAGE = gcr.io/distroless/static:nonroot
 -include build/makelib/image.mk  
 
 fallthrough: submodules
 	@echo Initial setup complete. Running make again . . .
 	@make
-
-# Ensure a PR is ready for review.
-reviewable: generate lint
-	@go mod tidy
-
-# Ensure branch is clean.
-check-diff: reviewable
-	@$(INFO) checking that branch is clean
-	@test -z "$$(git status --porcelain)" || $(FAIL)
-	@$(OK) branch is clean
 
 # Update the submodules, such as the common build scripts.
 submodules:

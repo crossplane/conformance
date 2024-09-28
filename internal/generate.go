@@ -12,13 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//go:build generate
 // +build generate
 
 // NOTE(negz): See the below link for details on what is happening here.
 // https://github.com/golang/go/wiki/Modules#how-can-i-track-tool-dependencies-for-a-module
 
 // Add license headers to all files.
-//go:generate go run -tags generate github.com/google/addlicense -v -c "The Crossplane Authors" . ../crossplane ../provider
+//go:generate go run -tags generate github.com/google/addlicense -v -c "The Crossplane Authors" . ../crossplane
 
 package internal
 
