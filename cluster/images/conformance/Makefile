@@ -7,7 +7,7 @@ IMAGE = $(BUILD_REGISTRY)/conformance-$(ARCH)
 # includes a busybox shell with just enough functionality to turn regular old
 # Go test output into the gzipped tarball of junit XML that Sonobuoy craves.
 OSBASEIMAGE = gcr.io/distroless/static@sha256:aea3063d00e3969d57cc8903709b58c8ee813576fbba56a977eeb915515e4ff0
-include ../../../build/makelib/image.mk
+include ../../../build/makelib/imagelight.mk
 
 ifeq ($(PLATFORM),$(filter $(PLATFORM),darwin_amd64 windows_amd64)) 
 $(info Skipping image build for $(PLATFORM))

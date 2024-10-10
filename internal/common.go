@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package internal contains internal helper functions used by the conformance tests.
 package internal
 
 import (
@@ -34,21 +35,26 @@ import (
 const SuiteName = "crossplane-conformance"
 
 // Version of the conformance plugin.
-var Version = "unknown"
+var version = "unknown"
+
+// Version returns the version of the conformance plugin.
+func Version() string {
+	return version
+}
 
 // NewClient returns a Kubernetes API client suitable for use with conformance
 // tests. It uses controller-runtime's config loading precedence to figure out
 // how to connect to an API server, i.e. it will try in order:
 //
-// 1. The KUBECONFIG environment variable if it is set to a kubeconfig file path
-// 2. In-cluster config if running in cluster
-// 3. $HOME/.kube/config if it exists
+// 1. The KUBECONFIG environment variable if it is set to a kubeconfig file path.
+// 2. In-cluster config if running in cluster.
+// 3. $HOME/.kube/config if it exists.
 func NewClient() (client.Client, error) {
 	cfg, err := ctrl.GetConfig()
 	if err != nil {
 		return nil, errors.Wrap(err, "cannot create Kubernetes API REST config")
 	}
-	cfg.UserAgent = SuiteName + "/" + Version
+	cfg.UserAgent = SuiteName + "/" + Version()
 	cfg.QPS = 20
 	cfg.Burst = 100
 
@@ -68,7 +74,6 @@ func NewClient() (client.Client, error) {
 
 	if err := extv1.AddToScheme(s); err != nil {
 		return nil, errors.Wrap(err, "cannot add Crossplane apiextensions/v1 to scheme")
-
 	}
 	if err := appsv1.AddToScheme(s); err != nil {
 		return nil, errors.Wrap(err, "cannot add Kubernetes apps/v1 to scheme")
@@ -123,7 +128,7 @@ func IgnoreFieldsOfMapKey(key string, names ...string) cmp.Option {
 
 		for _, n := range names {
 			if _, ok := m.Type().FieldByName(n); !ok {
-				panic(errors.Errorf("%s field %q does not exist\n", m.Type(), n))
+				panic(errors.Errorf("%s field %q does not exist", m.Type(), n))
 			}
 			if f.Name() == n {
 				return true
@@ -147,7 +152,7 @@ func OnlySubproperties(key string, keys ...string) cmp.Option {
 		}
 
 		if _, ok := m.Type().FieldByName(props); !ok {
-			panic(errors.Errorf("%s field %q does not exist\n", m.Type(), props))
+			panic(errors.Errorf("%s field %q does not exist", m.Type(), props))
 		}
 
 		f, ok := p.Index(-2).(cmp.StructField)

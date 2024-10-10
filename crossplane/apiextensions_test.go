@@ -32,6 +32,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/utils/ptr"
 
+	"github.com/crossplane/conformance/internal"
 	xpv1 "github.com/crossplane/crossplane-runtime/apis/common/v1"
 	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
 	"github.com/crossplane/crossplane-runtime/pkg/resource"
@@ -39,8 +40,6 @@ import (
 	"github.com/crossplane/crossplane-runtime/pkg/resource/unstructured/composite"
 	extv1 "github.com/crossplane/crossplane/apis/apiextensions/v1"
 	pkgv1 "github.com/crossplane/crossplane/apis/pkg/v1"
-
-	"github.com/crossplane/conformance/internal"
 )
 
 func TestCompositeResourceDefinition(t *testing.T) {
@@ -97,7 +96,7 @@ func TestCompositeResourceDefinition(t *testing.T) {
 
 	t.Run("BecomesEstablishedAndOffered", func(t *testing.T) {
 		t.Log("Testing that the XRD's Established and Offered status conditions become 'True'.")
-		if err := wait.PollImmediate(10*time.Second, 90*time.Second, func() (done bool, err error) {
+		if err := wait.PollUntilContextTimeout(ctx, 10*time.Second, 90*time.Second, true, func(ctx context.Context) (done bool, err error) {
 			if err := kube.Get(ctx, types.NamespacedName{Name: xrd.GetName()}, xrd); err != nil {
 				return false, err
 			}
@@ -140,206 +139,207 @@ func TestCompositeResourceDefinition(t *testing.T) {
 				Served:       true,
 				Storage:      true,
 				Subresources: &kextv1.CustomResourceSubresources{Status: &kextv1.CustomResourceSubresourceStatus{}},
-				Schema: &kextv1.CustomResourceValidation{OpenAPIV3Schema: &kextv1.JSONSchemaProps{
-					Type:     "object",
-					Required: []string{"spec"},
-					Properties: map[string]kextv1.JSONSchemaProps{
-						"apiVersion": {
-							Type: "string",
-						},
-						"kind": {
-							Type: "string",
-						},
-						"metadata": {
-							Type: "object",
-							Properties: map[string]kextv1.JSONSchemaProps{
-								"name": {
-									Type: "string",
-									// https://github.com/crossplane/crossplane/commit/0181529f057049fc210ff02345a097bdc9ccc95d
-									MaxLength: ptr.To(int64(63)),
-								},
+				Schema: &kextv1.CustomResourceValidation{
+					OpenAPIV3Schema: &kextv1.JSONSchemaProps{
+						Type:     "object",
+						Required: []string{"spec"},
+						Properties: map[string]kextv1.JSONSchemaProps{
+							"apiVersion": {
+								Type: "string",
 							},
-						},
-						"spec": {
-							Type: "object",
-							Properties: map[string]kextv1.JSONSchemaProps{
-								"compositionRef": {
-									Type:     "object",
-									Required: []string{"name"},
-									Properties: map[string]kextv1.JSONSchemaProps{
-										"name": {Type: "string"},
-									},
-								},
-								"compositionSelector": {
-									Type:     "object",
-									Required: []string{"matchLabels"},
-									Properties: map[string]kextv1.JSONSchemaProps{
-										"matchLabels": {
-											Type: "object",
-											AdditionalProperties: &kextv1.JSONSchemaPropsOrBool{
-												Allows: true,
-												Schema: &kextv1.JSONSchemaProps{Type: "string"},
-											},
-										},
-									},
-								},
-								"compositionRevisionRef": { // https://github.com/crossplane/crossplane/commit/deb18660640742f236d9057587671c74224afcc4
-									Type:     "object",
-									Required: []string{"name"},
-									Properties: map[string]kextv1.JSONSchemaProps{
-										"name": {Type: "string"},
-									},
-								},
-								"compositionRevisionSelector": { // https://github.com/crossplane/crossplane/commit/7802cf85a5dd068038a115c42434e0db2d9dfa1f
-									Type:     "object",
-									Required: []string{"matchLabels"},
-									Properties: map[string]kextv1.JSONSchemaProps{
-										"matchLabels": {
-											Type: "object",
-											AdditionalProperties: &kextv1.JSONSchemaPropsOrBool{
-												Allows: true,
-												Schema: &kextv1.JSONSchemaProps{Type: "string"},
-											},
-										},
-									},
-								},
-								"compositionUpdatePolicy": { // https://github.com/crossplane/crossplane/commit/deb18660640742f236d9057587671c74224afcc4
-									Type: "string",
-									Enum: []kextv1.JSON{
-										{Raw: []byte(`"Automatic"`)},
-										{Raw: []byte(`"Manual"`)},
-									},
-									Default: &kextv1.JSON{Raw: []byte(`"Automatic"`)}, // https://github.com/crossplane/crossplane/commit/d346a67573e5cd111a7631bdb0f86ed9c0914204
-								},
-								"claimRef": {
-									Type:     "object",
-									Required: []string{"apiVersion", "kind", "namespace", "name"},
-									Properties: map[string]kextv1.JSONSchemaProps{
-										"apiVersion": {Type: "string"},
-										"kind":       {Type: "string"},
-										"namespace":  {Type: "string"},
-										"name":       {Type: "string"},
-									},
-								},
-								"environmentConfigRefs": { // https://github.com/crossplane/crossplane/commit/200a41f84b48df2093090f8282c67099b936c0ea
-									Type: "array",
-									Items: &kextv1.JSONSchemaPropsOrArray{
-										Schema: &kextv1.JSONSchemaProps{
-											Type: "object",
-											Properties: map[string]kextv1.JSONSchemaProps{
-												"apiVersion": {Type: "string"},
-												"name":       {Type: "string"},
-												"kind":       {Type: "string"},
-											},
-											Required: []string{"apiVersion", "kind"},
-										},
-									},
-								},
-								"resourceRefs": {
-									Type: "array",
-									Items: &kextv1.JSONSchemaPropsOrArray{
-										Schema: &kextv1.JSONSchemaProps{
-											Type: "object",
-											Properties: map[string]kextv1.JSONSchemaProps{
-												"apiVersion": {Type: "string"},
-												"name":       {Type: "string"},
-												"kind":       {Type: "string"},
-											},
-											Required: []string{"apiVersion", "kind"}, // https://github.com/crossplane/crossplane/commit/6750ee120a75662d952689fc24c801384e96baa5
-										},
-									},
-									XListType: ptr.To("atomic"), // https://github.com/crossplane/crossplane/commit/683f0c5763de698e1fec3eee460ba6fee75379a4
-								},
-								"publishConnectionDetailsTo": { // https://github.com/crossplane/crossplane/commit/47a7ad7392e829e5b938eb716ad768aec7bbebfa
-									Type:     "object",
-									Required: []string{"name"},
-									Properties: map[string]kextv1.JSONSchemaProps{
-										"name": {Type: "string"},
-										"configRef": {
-											Type:    "object",
-											Default: &kextv1.JSON{Raw: []byte(`{"name":"default"}`)},
-											Properties: map[string]kextv1.JSONSchemaProps{
-												"name": {
-													Type: "string",
-												},
-											},
-										},
-										"metadata": {
-											Type: "object",
-											Properties: map[string]kextv1.JSONSchemaProps{
-												"labels": {
-													Type: "object",
-													AdditionalProperties: &kextv1.JSONSchemaPropsOrBool{
-														Allows: true,
-														Schema: &kextv1.JSONSchemaProps{Type: "string"},
-													},
-												},
-												"annotations": {
-													Type: "object",
-													AdditionalProperties: &kextv1.JSONSchemaPropsOrBool{
-														Allows: true,
-														Schema: &kextv1.JSONSchemaProps{Type: "string"},
-													},
-												},
-												"type": {
-													Type: "string",
-												},
-											},
-										},
-									},
-								},
-								"writeConnectionSecretToRef": {
-									Type:     "object",
-									Required: []string{"name", "namespace"},
-									Properties: map[string]kextv1.JSONSchemaProps{
-										"name":      {Type: "string"},
-										"namespace": {Type: "string"},
+							"kind": {
+								Type: "string",
+							},
+							"metadata": {
+								Type: "object",
+								Properties: map[string]kextv1.JSONSchemaProps{
+									"name": {
+										Type: "string",
+										// https://github.com/crossplane/crossplane/commit/0181529f057049fc210ff02345a097bdc9ccc95d
+										MaxLength: ptr.To(int64(63)),
 									},
 								},
 							},
-						},
-						"status": {
-							Type: "object",
-							Properties: map[string]kextv1.JSONSchemaProps{
-								"conditions": {
-									Description: "Conditions of the resource.",
-									Type:        "array",
-									// XListMapKeys and XListType both added in https://github.com/crossplane/crossplane/commit/6ac7567cbb5bf139c22aa90cdec643d1dcf15846
-									XListMapKeys: []string{"type"},
-									XListType:    ptr.To("map"),
-									Items: &kextv1.JSONSchemaPropsOrArray{
-										Schema: &kextv1.JSONSchemaProps{
-											Type:     "object",
-											Required: []string{"lastTransitionTime", "reason", "status", "type"},
-											Properties: map[string]kextv1.JSONSchemaProps{
-												"lastTransitionTime": {Type: "string", Format: "date-time"},
-												"message":            {Type: "string"},
-												"reason":             {Type: "string"},
-												"status":             {Type: "string"},
-												"type":               {Type: "string"},
+							"spec": {
+								Type: "object",
+								Properties: map[string]kextv1.JSONSchemaProps{
+									"compositionRef": {
+										Type:     "object",
+										Required: []string{"name"},
+										Properties: map[string]kextv1.JSONSchemaProps{
+											"name": {Type: "string"},
+										},
+									},
+									"compositionSelector": {
+										Type:     "object",
+										Required: []string{"matchLabels"},
+										Properties: map[string]kextv1.JSONSchemaProps{
+											"matchLabels": {
+												Type: "object",
+												AdditionalProperties: &kextv1.JSONSchemaPropsOrBool{
+													Allows: true,
+													Schema: &kextv1.JSONSchemaProps{Type: "string"},
+												},
 											},
 										},
 									},
-								},
-								"connectionDetails": {
-									Type: "object",
-									Properties: map[string]kextv1.JSONSchemaProps{
-										"lastPublishedTime": {Type: "string", Format: "date-time"},
+									"compositionRevisionRef": { // https://github.com/crossplane/crossplane/commit/deb18660640742f236d9057587671c74224afcc4
+										Type:     "object",
+										Required: []string{"name"},
+										Properties: map[string]kextv1.JSONSchemaProps{
+											"name": {Type: "string"},
+										},
+									},
+									"compositionRevisionSelector": { // https://github.com/crossplane/crossplane/commit/7802cf85a5dd068038a115c42434e0db2d9dfa1f
+										Type:     "object",
+										Required: []string{"matchLabels"},
+										Properties: map[string]kextv1.JSONSchemaProps{
+											"matchLabels": {
+												Type: "object",
+												AdditionalProperties: &kextv1.JSONSchemaPropsOrBool{
+													Allows: true,
+													Schema: &kextv1.JSONSchemaProps{Type: "string"},
+												},
+											},
+										},
+									},
+									"compositionUpdatePolicy": { // https://github.com/crossplane/crossplane/commit/deb18660640742f236d9057587671c74224afcc4
+										Type: "string",
+										Enum: []kextv1.JSON{
+											{Raw: []byte(`"Automatic"`)},
+											{Raw: []byte(`"Manual"`)},
+										},
+										Default: &kextv1.JSON{Raw: []byte(`"Automatic"`)}, // https://github.com/crossplane/crossplane/commit/d346a67573e5cd111a7631bdb0f86ed9c0914204
+									},
+									"claimRef": {
+										Type:     "object",
+										Required: []string{"apiVersion", "kind", "namespace", "name"},
+										Properties: map[string]kextv1.JSONSchemaProps{
+											"apiVersion": {Type: "string"},
+											"kind":       {Type: "string"},
+											"namespace":  {Type: "string"},
+											"name":       {Type: "string"},
+										},
+									},
+									"environmentConfigRefs": { // https://github.com/crossplane/crossplane/commit/200a41f84b48df2093090f8282c67099b936c0ea
+										Type: "array",
+										Items: &kextv1.JSONSchemaPropsOrArray{
+											Schema: &kextv1.JSONSchemaProps{
+												Type: "object",
+												Properties: map[string]kextv1.JSONSchemaProps{
+													"apiVersion": {Type: "string"},
+													"name":       {Type: "string"},
+													"kind":       {Type: "string"},
+												},
+												Required: []string{"apiVersion", "kind"},
+											},
+										},
+									},
+									"resourceRefs": {
+										Type: "array",
+										Items: &kextv1.JSONSchemaPropsOrArray{
+											Schema: &kextv1.JSONSchemaProps{
+												Type: "object",
+												Properties: map[string]kextv1.JSONSchemaProps{
+													"apiVersion": {Type: "string"},
+													"name":       {Type: "string"},
+													"kind":       {Type: "string"},
+												},
+												Required: []string{"apiVersion", "kind"}, // https://github.com/crossplane/crossplane/commit/6750ee120a75662d952689fc24c801384e96baa5
+											},
+										},
+										XListType: ptr.To("atomic"), // https://github.com/crossplane/crossplane/commit/683f0c5763de698e1fec3eee460ba6fee75379a4
+									},
+									"publishConnectionDetailsTo": { // https://github.com/crossplane/crossplane/commit/47a7ad7392e829e5b938eb716ad768aec7bbebfa
+										Type:     "object",
+										Required: []string{"name"},
+										Properties: map[string]kextv1.JSONSchemaProps{
+											"name": {Type: "string"},
+											"configRef": {
+												Type:    "object",
+												Default: &kextv1.JSON{Raw: []byte(`{"name":"default"}`)},
+												Properties: map[string]kextv1.JSONSchemaProps{
+													"name": {
+														Type: "string",
+													},
+												},
+											},
+											"metadata": {
+												Type: "object",
+												Properties: map[string]kextv1.JSONSchemaProps{
+													"labels": {
+														Type: "object",
+														AdditionalProperties: &kextv1.JSONSchemaPropsOrBool{
+															Allows: true,
+															Schema: &kextv1.JSONSchemaProps{Type: "string"},
+														},
+													},
+													"annotations": {
+														Type: "object",
+														AdditionalProperties: &kextv1.JSONSchemaPropsOrBool{
+															Allows: true,
+															Schema: &kextv1.JSONSchemaProps{Type: "string"},
+														},
+													},
+													"type": {
+														Type: "string",
+													},
+												},
+											},
+										},
+									},
+									"writeConnectionSecretToRef": {
+										Type:     "object",
+										Required: []string{"name", "namespace"},
+										Properties: map[string]kextv1.JSONSchemaProps{
+											"name":      {Type: "string"},
+											"namespace": {Type: "string"},
+										},
 									},
 								},
-								"claimConditionTypes": { // https://github.com/crossplane/crossplane/commit/0b75611324407889a6064a17cb9058a6f40c2c36
-									Type:      "array",
-									XListType: ptr.To("set"),
-									Items: &kextv1.JSONSchemaPropsOrArray{
-										Schema: &kextv1.JSONSchemaProps{
-											Type: "string",
+							},
+							"status": {
+								Type: "object",
+								Properties: map[string]kextv1.JSONSchemaProps{
+									"conditions": {
+										Description: "Conditions of the resource.",
+										Type:        "array",
+										// XListMapKeys and XListType both added in https://github.com/crossplane/crossplane/commit/6ac7567cbb5bf139c22aa90cdec643d1dcf15846
+										XListMapKeys: []string{"type"},
+										XListType:    ptr.To("map"),
+										Items: &kextv1.JSONSchemaPropsOrArray{
+											Schema: &kextv1.JSONSchemaProps{
+												Type:     "object",
+												Required: []string{"lastTransitionTime", "reason", "status", "type"},
+												Properties: map[string]kextv1.JSONSchemaProps{
+													"lastTransitionTime": {Type: "string", Format: "date-time"},
+													"message":            {Type: "string"},
+													"reason":             {Type: "string"},
+													"status":             {Type: "string"},
+													"type":               {Type: "string"},
+												},
+											},
+										},
+									},
+									"connectionDetails": {
+										Type: "object",
+										Properties: map[string]kextv1.JSONSchemaProps{
+											"lastPublishedTime": {Type: "string", Format: "date-time"},
+										},
+									},
+									"claimConditionTypes": { // https://github.com/crossplane/crossplane/commit/0b75611324407889a6064a17cb9058a6f40c2c36
+										Type:      "array",
+										XListType: ptr.To("set"),
+										Items: &kextv1.JSONSchemaPropsOrArray{
+											Schema: &kextv1.JSONSchemaProps{
+												Type: "string",
+											},
 										},
 									},
 								},
 							},
 						},
 					},
-				},
 				},
 				AdditionalPrinterColumns: []kextv1.CustomResourceColumnDefinition{
 					{
@@ -368,7 +368,7 @@ func TestCompositeResourceDefinition(t *testing.T) {
 			Conversion: &kextv1.CustomResourceConversion{Strategy: kextv1.NoneConverter},
 		}
 
-		if err := wait.PollImmediate(10*time.Second, 90*time.Second, func() (done bool, err error) {
+		if err := wait.PollUntilContextTimeout(ctx, 10*time.Second, 90*time.Second, true, func(ctx context.Context) (done bool, err error) {
 			crd := &kextv1.CustomResourceDefinition{}
 			if err := kube.Get(ctx, types.NamespacedName{Name: xrd.GetName()}, crd); err != nil {
 				if kerrors.IsNotFound(err) {
@@ -416,182 +416,183 @@ func TestCompositeResourceDefinition(t *testing.T) {
 				Served:       true,
 				Storage:      true,
 				Subresources: &kextv1.CustomResourceSubresources{Status: &kextv1.CustomResourceSubresourceStatus{}},
-				Schema: &kextv1.CustomResourceValidation{OpenAPIV3Schema: &kextv1.JSONSchemaProps{
-					Type:     "object",
-					Required: []string{"spec"},
-					Properties: map[string]kextv1.JSONSchemaProps{
-						"apiVersion": {
-							Type: "string",
-						},
-						"kind": {
-							Type: "string",
-						},
-						"metadata": {
-							Type: "object",
-							Properties: map[string]kextv1.JSONSchemaProps{
-								"name": {
-									Type: "string",
-									// https://github.com/crossplane/crossplane/commit/0181529f057049fc210ff02345a097bdc9ccc95d
-									MaxLength: ptr.To(int64(63)),
-								},
+				Schema: &kextv1.CustomResourceValidation{
+					OpenAPIV3Schema: &kextv1.JSONSchemaProps{
+						Type:     "object",
+						Required: []string{"spec"},
+						Properties: map[string]kextv1.JSONSchemaProps{
+							"apiVersion": {
+								Type: "string",
 							},
-						},
-						"spec": {
-							Type: "object",
-							Properties: map[string]kextv1.JSONSchemaProps{
-								"compositionRef": {
-									Type:     "object",
-									Required: []string{"name"},
-									Properties: map[string]kextv1.JSONSchemaProps{
-										"name": {Type: "string"},
-									},
-								},
-								"compositionSelector": {
-									Type:     "object",
-									Required: []string{"matchLabels"},
-									Properties: map[string]kextv1.JSONSchemaProps{
-										"matchLabels": {
-											Type: "object",
-											AdditionalProperties: &kextv1.JSONSchemaPropsOrBool{
-												Allows: true,
-												Schema: &kextv1.JSONSchemaProps{Type: "string"},
-											},
-										},
-									},
-								},
-								"compositionRevisionRef": { // https://github.com/crossplane/crossplane/commit/deb18660640742f236d9057587671c74224afcc4
-									Type:     "object",
-									Required: []string{"name"},
-									Properties: map[string]kextv1.JSONSchemaProps{
-										"name": {Type: "string"},
-									},
-								},
-								"compositionRevisionSelector": { // https://github.com/crossplane/crossplane/commit/7802cf85a5dd068038a115c42434e0db2d9dfa1f
-									Type:     "object",
-									Required: []string{"matchLabels"},
-									Properties: map[string]kextv1.JSONSchemaProps{
-										"matchLabels": {
-											Type: "object",
-											AdditionalProperties: &kextv1.JSONSchemaPropsOrBool{
-												Allows: true,
-												Schema: &kextv1.JSONSchemaProps{Type: "string"},
-											},
-										},
-									},
-								},
-								"compositionUpdatePolicy": { // https://github.com/crossplane/crossplane/commit/deb18660640742f236d9057587671c74224afcc4
-									Type: "string",
-									Enum: []kextv1.JSON{
-										{Raw: []byte(`"Automatic"`)},
-										{Raw: []byte(`"Manual"`)},
-									},
-								},
-								"compositeDeletePolicy": { // https://github.com/crossplane/crossplane/commit/ba4c8a43ab800bde0e39300f0bb8bdf6e8bba889
-									Type: "string",
-									Enum: []kextv1.JSON{
-										{Raw: []byte(`"Background"`)},
-										{Raw: []byte(`"Foreground"`)},
-									},
-									Default: &kextv1.JSON{Raw: []byte(`"Background"`)}, // https://github.com/crossplane/crossplane/commit/ca105476823a688f8235aea5383e626fa1a65721
-								},
-								"resourceRef": {
-									Type:     "object",
-									Required: []string{"apiVersion", "kind", "name"},
-									Properties: map[string]kextv1.JSONSchemaProps{
-										"apiVersion": {Type: "string"},
-										"kind":       {Type: "string"},
-										"name":       {Type: "string"},
-									},
-								},
-								"publishConnectionDetailsTo": { // https://github.com/crossplane/crossplane/commit/47a7ad7392e829e5b938eb716ad768aec7bbebfa
-									Type:     "object",
-									Required: []string{"name"},
-									Properties: map[string]kextv1.JSONSchemaProps{
-										"name": {Type: "string"},
-										"configRef": {
-											Type:    "object",
-											Default: &kextv1.JSON{Raw: []byte(`{"name":"default"}`)},
-											Properties: map[string]kextv1.JSONSchemaProps{
-												"name": {
-													Type: "string",
-												},
-											},
-										},
-										"metadata": {
-											Type: "object",
-											Properties: map[string]kextv1.JSONSchemaProps{
-												"labels": {
-													Type: "object",
-													AdditionalProperties: &kextv1.JSONSchemaPropsOrBool{
-														Allows: true,
-														Schema: &kextv1.JSONSchemaProps{Type: "string"},
-													},
-												},
-												"annotations": {
-													Type: "object",
-													AdditionalProperties: &kextv1.JSONSchemaPropsOrBool{
-														Allows: true,
-														Schema: &kextv1.JSONSchemaProps{Type: "string"},
-													},
-												},
-												"type": {
-													Type: "string",
-												},
-											},
-										},
-									},
-								},
-								"writeConnectionSecretToRef": {
-									Type:     "object",
-									Required: []string{"name"},
-									Properties: map[string]kextv1.JSONSchemaProps{
-										"name": {Type: "string"},
+							"kind": {
+								Type: "string",
+							},
+							"metadata": {
+								Type: "object",
+								Properties: map[string]kextv1.JSONSchemaProps{
+									"name": {
+										Type: "string",
+										// https://github.com/crossplane/crossplane/commit/0181529f057049fc210ff02345a097bdc9ccc95d
+										MaxLength: ptr.To(int64(63)),
 									},
 								},
 							},
-						},
-						"status": {
-							Type: "object",
-							Properties: map[string]kextv1.JSONSchemaProps{
-								"conditions": {
-									Description: "Conditions of the resource.",
-									Type:        "array",
-									// XListMapKeys and XListType both added in https://github.com/crossplane/crossplane/commit/6ac7567cbb5bf139c22aa90cdec643d1dcf15846
-									XListMapKeys: []string{"type"},
-									XListType:    ptr.To("map"),
-									Items: &kextv1.JSONSchemaPropsOrArray{
-										Schema: &kextv1.JSONSchemaProps{
-											Type:     "object",
-											Required: []string{"lastTransitionTime", "reason", "status", "type"},
-											Properties: map[string]kextv1.JSONSchemaProps{
-												"lastTransitionTime": {Type: "string", Format: "date-time"},
-												"message":            {Type: "string"},
-												"reason":             {Type: "string"},
-												"status":             {Type: "string"},
-												"type":               {Type: "string"},
+							"spec": {
+								Type: "object",
+								Properties: map[string]kextv1.JSONSchemaProps{
+									"compositionRef": {
+										Type:     "object",
+										Required: []string{"name"},
+										Properties: map[string]kextv1.JSONSchemaProps{
+											"name": {Type: "string"},
+										},
+									},
+									"compositionSelector": {
+										Type:     "object",
+										Required: []string{"matchLabels"},
+										Properties: map[string]kextv1.JSONSchemaProps{
+											"matchLabels": {
+												Type: "object",
+												AdditionalProperties: &kextv1.JSONSchemaPropsOrBool{
+													Allows: true,
+													Schema: &kextv1.JSONSchemaProps{Type: "string"},
+												},
 											},
 										},
 									},
-								},
-								"connectionDetails": {
-									Type: "object",
-									Properties: map[string]kextv1.JSONSchemaProps{
-										"lastPublishedTime": {Type: "string", Format: "date-time"},
+									"compositionRevisionRef": { // https://github.com/crossplane/crossplane/commit/deb18660640742f236d9057587671c74224afcc4
+										Type:     "object",
+										Required: []string{"name"},
+										Properties: map[string]kextv1.JSONSchemaProps{
+											"name": {Type: "string"},
+										},
+									},
+									"compositionRevisionSelector": { // https://github.com/crossplane/crossplane/commit/7802cf85a5dd068038a115c42434e0db2d9dfa1f
+										Type:     "object",
+										Required: []string{"matchLabels"},
+										Properties: map[string]kextv1.JSONSchemaProps{
+											"matchLabels": {
+												Type: "object",
+												AdditionalProperties: &kextv1.JSONSchemaPropsOrBool{
+													Allows: true,
+													Schema: &kextv1.JSONSchemaProps{Type: "string"},
+												},
+											},
+										},
+									},
+									"compositionUpdatePolicy": { // https://github.com/crossplane/crossplane/commit/deb18660640742f236d9057587671c74224afcc4
+										Type: "string",
+										Enum: []kextv1.JSON{
+											{Raw: []byte(`"Automatic"`)},
+											{Raw: []byte(`"Manual"`)},
+										},
+									},
+									"compositeDeletePolicy": { // https://github.com/crossplane/crossplane/commit/ba4c8a43ab800bde0e39300f0bb8bdf6e8bba889
+										Type: "string",
+										Enum: []kextv1.JSON{
+											{Raw: []byte(`"Background"`)},
+											{Raw: []byte(`"Foreground"`)},
+										},
+										Default: &kextv1.JSON{Raw: []byte(`"Background"`)}, // https://github.com/crossplane/crossplane/commit/ca105476823a688f8235aea5383e626fa1a65721
+									},
+									"resourceRef": {
+										Type:     "object",
+										Required: []string{"apiVersion", "kind", "name"},
+										Properties: map[string]kextv1.JSONSchemaProps{
+											"apiVersion": {Type: "string"},
+											"kind":       {Type: "string"},
+											"name":       {Type: "string"},
+										},
+									},
+									"publishConnectionDetailsTo": { // https://github.com/crossplane/crossplane/commit/47a7ad7392e829e5b938eb716ad768aec7bbebfa
+										Type:     "object",
+										Required: []string{"name"},
+										Properties: map[string]kextv1.JSONSchemaProps{
+											"name": {Type: "string"},
+											"configRef": {
+												Type:    "object",
+												Default: &kextv1.JSON{Raw: []byte(`{"name":"default"}`)},
+												Properties: map[string]kextv1.JSONSchemaProps{
+													"name": {
+														Type: "string",
+													},
+												},
+											},
+											"metadata": {
+												Type: "object",
+												Properties: map[string]kextv1.JSONSchemaProps{
+													"labels": {
+														Type: "object",
+														AdditionalProperties: &kextv1.JSONSchemaPropsOrBool{
+															Allows: true,
+															Schema: &kextv1.JSONSchemaProps{Type: "string"},
+														},
+													},
+													"annotations": {
+														Type: "object",
+														AdditionalProperties: &kextv1.JSONSchemaPropsOrBool{
+															Allows: true,
+															Schema: &kextv1.JSONSchemaProps{Type: "string"},
+														},
+													},
+													"type": {
+														Type: "string",
+													},
+												},
+											},
+										},
+									},
+									"writeConnectionSecretToRef": {
+										Type:     "object",
+										Required: []string{"name"},
+										Properties: map[string]kextv1.JSONSchemaProps{
+											"name": {Type: "string"},
+										},
 									},
 								},
-								"claimConditionTypes": { // https://github.com/crossplane/crossplane/commit/0b75611324407889a6064a17cb9058a6f40c2c36
-									Type:      "array",
-									XListType: ptr.To("set"),
-									Items: &kextv1.JSONSchemaPropsOrArray{
-										Schema: &kextv1.JSONSchemaProps{
-											Type: "string",
+							},
+							"status": {
+								Type: "object",
+								Properties: map[string]kextv1.JSONSchemaProps{
+									"conditions": {
+										Description: "Conditions of the resource.",
+										Type:        "array",
+										// XListMapKeys and XListType both added in https://github.com/crossplane/crossplane/commit/6ac7567cbb5bf139c22aa90cdec643d1dcf15846
+										XListMapKeys: []string{"type"},
+										XListType:    ptr.To("map"),
+										Items: &kextv1.JSONSchemaPropsOrArray{
+											Schema: &kextv1.JSONSchemaProps{
+												Type:     "object",
+												Required: []string{"lastTransitionTime", "reason", "status", "type"},
+												Properties: map[string]kextv1.JSONSchemaProps{
+													"lastTransitionTime": {Type: "string", Format: "date-time"},
+													"message":            {Type: "string"},
+													"reason":             {Type: "string"},
+													"status":             {Type: "string"},
+													"type":               {Type: "string"},
+												},
+											},
+										},
+									},
+									"connectionDetails": {
+										Type: "object",
+										Properties: map[string]kextv1.JSONSchemaProps{
+											"lastPublishedTime": {Type: "string", Format: "date-time"},
+										},
+									},
+									"claimConditionTypes": { // https://github.com/crossplane/crossplane/commit/0b75611324407889a6064a17cb9058a6f40c2c36
+										Type:      "array",
+										XListType: ptr.To("set"),
+										Items: &kextv1.JSONSchemaPropsOrArray{
+											Schema: &kextv1.JSONSchemaProps{
+												Type: "string",
+											},
 										},
 									},
 								},
 							},
 						},
 					},
-				},
 				},
 				AdditionalPrinterColumns: []kextv1.CustomResourceColumnDefinition{
 					{
@@ -620,7 +621,7 @@ func TestCompositeResourceDefinition(t *testing.T) {
 			Conversion: &kextv1.CustomResourceConversion{Strategy: kextv1.NoneConverter},
 		}
 
-		if err := wait.PollImmediate(10*time.Second, 90*time.Second, func() (done bool, err error) {
+		if err := wait.PollUntilContextTimeout(ctx, 10*time.Second, 90*time.Second, true, func(ctx context.Context) (done bool, err error) {
 			name := xrd.Spec.ClaimNames.Plural + "." + xrd.Spec.Group
 			crd := &kextv1.CustomResourceDefinition{}
 			if err := kube.Get(ctx, types.NamespacedName{Name: name}, crd); err != nil {
@@ -751,7 +752,7 @@ func TestCompositeResource(t *testing.T) {
 	}
 	// XRDs take a while to delete, so we try a few times in case creates are
 	// failing due to an old XRD hanging around.
-	if err := wait.PollImmediate(10*time.Second, 60*time.Second, func() (done bool, err error) {
+	if err := wait.PollUntilContextTimeout(ctx, 10*time.Second, 60*time.Second, true, func(ctx context.Context) (done bool, err error) {
 		if err := kube.Create(ctx, xrd); err != nil {
 			t.Logf("Create XRD %q: %v", xrd.GetName(), err)
 			return false, nil
@@ -774,7 +775,7 @@ func TestCompositeResource(t *testing.T) {
 	})
 
 	t.Log("Waiting for the XRD's Established and Offered status conditions to become 'True'.")
-	if err := wait.PollImmediate(10*time.Second, 60*time.Second, func() (done bool, err error) {
+	if err := wait.PollUntilContextTimeout(ctx, 10*time.Second, 60*time.Second, true, func(ctx context.Context) (done bool, err error) {
 		if err := kube.Get(ctx, types.NamespacedName{Name: xrd.GetName()}, xrd); err != nil {
 			return false, err
 		}
@@ -1018,7 +1019,7 @@ func TestCompositeResource(t *testing.T) {
 		// Becoming Ready implies the claim selects a composition and creates an
 		// XR that successfully composes resources.
 		t.Log("Testing that the claim becomes Ready.")
-		if err := wait.PollImmediate(15*time.Second, 2*time.Minute, func() (done bool, err error) {
+		if err := wait.PollUntilContextTimeout(ctx, 15*time.Second, 2*time.Minute, true, func(ctx context.Context) (done bool, err error) {
 			if err := kube.Get(ctx, types.NamespacedName{Namespace: xrc.GetNamespace(), Name: xrc.GetName()}, xrc); err != nil {
 				return false, err
 			}
@@ -1081,7 +1082,7 @@ func TestCompositeResource(t *testing.T) {
 			Kind:    xrd.Spec.Names.Kind,
 		}))
 
-		if err := wait.PollImmediate(15*time.Second, 2*time.Minute, func() (done bool, err error) {
+		if err := wait.PollUntilContextTimeout(ctx, 15*time.Second, 2*time.Minute, true, func(ctx context.Context) (done bool, err error) {
 			if err := kube.Get(ctx, types.NamespacedName{Name: xrc.GetResourceReference().Name}, xr); err != nil {
 				return false, err
 			}

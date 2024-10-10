@@ -46,7 +46,6 @@ func TestCustomResourceDefinitions(t *testing.T) {
 	cmp := kextv1.CustomResourceDefinition{ObjectMeta: metav1.ObjectMeta{Name: "compositions.apiextensions.crossplane.io"}}
 
 	for _, crd := range []kextv1.CustomResourceDefinition{cfg, cfgRev, prv, prvRev, xrd, cmp} {
-		crd := crd // Don't take the address of a range var.
 		if err := kube.Get(ctx, types.NamespacedName{Name: crd.GetName()}, &crd); err != nil {
 			t.Errorf("Cannot get CRD %q: %v", crd.GetName(), err)
 			continue

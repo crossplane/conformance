@@ -22,5 +22,5 @@ import (
 
 func TestVersion(t *testing.T) {
 	// Not really a test, but we want somewhere to log this.
-	t.Logf("Conformance test version: %s", internal.Version)
+	t.Logf("Conformance test version: %s", internal.Version())
 }

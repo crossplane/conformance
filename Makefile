@@ -12,7 +12,7 @@ PLATFORMS ?= linux_amd64 linux_arm64
 NPROCS ?= 1
 GO_TEST_PARALLEL := $(shell echo $$(( $(NPROCS) / 2 )))
 GO_TEST_PACKAGES = $(GO_PROJECT)/crossplane
-GO_LDFLAGS += -X $(GO_PROJECT)/internal.Version=$(VERSION)
+GO_LDFLAGS += -X $(GO_PROJECT)/internal.version=$(VERSION)
 GO_SUBDIRS += internal crossplane
 GO111MODULE = on
 -include build/makelib/golang.mk
@@ -21,7 +21,7 @@ GO111MODULE = on
 DOCKER_REGISTRY = crossplane
 IMAGES = conformance
 OSBASEIMAGE = gcr.io/distroless/static:nonroot
--include build/makelib/image.mk  
+-include build/makelib/imagelight.mk
 
 fallthrough: submodules
 	@echo Initial setup complete. Running make again . . .

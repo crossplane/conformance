@@ -27,10 +27,9 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/utils/ptr"
 
+	"github.com/crossplane/conformance/internal"
 	"github.com/crossplane/crossplane-runtime/pkg/resource"
 	pkgv1 "github.com/crossplane/crossplane/apis/pkg/v1"
-
-	"github.com/crossplane/conformance/internal"
 )
 
 func TestProvider(t *testing.T) {
@@ -70,7 +69,7 @@ func TestProvider(t *testing.T) {
 
 	t.Run("BecomesInstalledAndHealthy", func(t *testing.T) {
 		t.Log("Testing that the provider's Healthy and Installed status conditions become 'True'.")
-		if err := wait.PollImmediate(10*time.Second, 90*time.Second, func() (done bool, err error) {
+		if err := wait.PollUntilContextTimeout(ctx, 10*time.Second, 90*time.Second, true, func(ctx context.Context) (done bool, err error) {
 			if err := kube.Get(ctx, types.NamespacedName{Name: prv.GetName()}, prv); err != nil {
 				return false, err
 			}
@@ -95,15 +94,13 @@ func TestProvider(t *testing.T) {
 	t.Run("RevisionBecomesHealthyAndDeploysObjects", func(t *testing.T) {
 		t.Log("Testing that the provider's revision's Healthy status condition becomes 'True', and that it deploys its objects.")
 
-		if err := wait.PollImmediate(10*time.Second, 90*time.Second, func() (done bool, err error) {
+		if err := wait.PollUntilContextTimeout(ctx, 10*time.Second, 90*time.Second, true, func(ctx context.Context) (done bool, err error) {
 			l := &pkgv1.ProviderRevisionList{}
 			if err := kube.List(ctx, l); err != nil {
 				return false, err
 			}
 
 			for _, rev := range l.Items {
-				rev := rev // To avoid using the range var in a fn literal.
-
 				for _, o := range rev.GetOwnerReferences() {
 					// This is not the revision we're looking for.
 					if o.Name != prv.GetName() {
