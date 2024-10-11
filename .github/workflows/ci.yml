@@ -238,20 +238,20 @@ jobs:
           password: ${{ secrets.DOCKER_PSW }}
 
       - name: Build
-        uses: crossplane-contrib/xpkg-action@v0.2.0
+        uses: crossplane-contrib/xpkg-action@master
         with:
           channel: master
           version: current
-          command: build configuration -f testdata/configuration --name=conformance.xpkg
+          command: xpkg build -f testdata/configuration -o conformance.xpkg
 
       - name: Push
-        uses: crossplane-contrib/xpkg-action@v0.2.0
+        uses: crossplane-contrib/xpkg-action@master
         if: env.DOCKER_USR != ''
         with:
-          command: push configuration -f testdata/configuration/conformance.xpkg crossplane/conformance-testdata-configuration:${{ steps.tagger.outputs.VERSION_TAG }}
+          command: xpkg push -f testdata/configuration/conformance.xpkg crossplane/conformance-testdata-configuration:${{ steps.tagger.outputs.VERSION_TAG }}
 
       - name: Push Latest
-        uses: crossplane-contrib/xpkg-action@v0.2.0
+        uses: crossplane-contrib/xpkg-action@master
         if: env.DOCKER_USR != ''
         with:
-          command: push configuration -f testdata/configuration/conformance.xpkg crossplane/conformance-testdata-configuration
+          command: xpkg push -f testdata/configuration/conformance.xpkg crossplane/conformance-testdata-configuration
