@@ -240,7 +240,7 @@ jobs:
       - name: Build
         uses: crossplane-contrib/xpkg-action@master
         with:
-          channel: master
+          channel: stable
           version: current
           command: xpkg build -f testdata/configuration -o conformance.xpkg
 
