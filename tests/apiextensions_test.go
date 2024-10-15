@@ -1116,6 +1116,7 @@ func TestCompositeResourcePipelineMode(t *testing.T) {
 }
 
 func createProvider(ctx context.Context, t *testing.T, kube client.Client) {
+	t.Helper()
 	prv := &pkgv1.Provider{
 		ObjectMeta: metav1.ObjectMeta{Name: internal.SuiteName},
 		Spec: pkgv1.ProviderSpec{
@@ -1144,6 +1145,7 @@ func createProvider(ctx context.Context, t *testing.T, kube client.Client) {
 }
 
 func createAndTestXRD(ctx context.Context, t *testing.T, kube client.Client) *extv1.CompositeResourceDefinition {
+	t.Helper()
 	xrd := &extv1.CompositeResourceDefinition{
 		ObjectMeta: metav1.ObjectMeta{Name: "clusterconformances.test.crossplane.io"},
 		Spec: extv1.CompositeResourceDefinitionSpec{
@@ -1247,6 +1249,7 @@ func createAndTestXRD(ctx context.Context, t *testing.T, kube client.Client) *ex
 }
 
 func createNamespace(ctx context.Context, t *testing.T, kube client.Client) {
+	t.Helper()
 	ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: internal.SuiteName}}
 	if err := kube.Create(ctx, ns); err != nil {
 		t.Fatalf("Create namespace %q: %v", ns.GetName(), err)
@@ -1266,6 +1269,7 @@ func createNamespace(ctx context.Context, t *testing.T, kube client.Client) {
 }
 
 func createAndTestClaim(ctx context.Context, t *testing.T, kube client.Client, xrd *extv1.CompositeResourceDefinition) *claim.Unstructured {
+	t.Helper()
 	xrc := claim.New(claim.WithGroupVersionKind(schema.GroupVersionKind{
 		Group:   xrd.Spec.Group,
 		Version: xrd.Spec.Versions[0].Name,
@@ -1359,6 +1363,7 @@ func createAndTestClaim(ctx context.Context, t *testing.T, kube client.Client, x
 }
 
 func testXR(ctx context.Context, t *testing.T, kube client.Client, xrd *extv1.CompositeResourceDefinition, xrc *claim.Unstructured) {
+	t.Helper()
 	xrSecretRef := &xpv1.SecretReference{}
 	t.Run("CompositeBecomesReady", func(t *testing.T) {
 		t.Log("Testing that the composite resource becomes Ready.")
@@ -1407,6 +1412,7 @@ func testXR(ctx context.Context, t *testing.T, kube client.Client, xrd *extv1.Co
 }
 
 func asJSON(t *testing.T, val interface{}) kextv1.JSON {
+	t.Helper()
 	raw, err := json.Marshal(val)
 	if err != nil {
 		t.Fatal(err)
