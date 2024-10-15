@@ -1,4 +1,4 @@
-// Copyright 2021 The Crossplane Authors
+// Copyright 2024 The Crossplane Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -32,7 +32,7 @@ import (
 	pkgv1 "github.com/crossplane/crossplane/apis/pkg/v1"
 )
 
-func TestProvider(t *testing.T) {
+func TestFunction(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
 
@@ -41,61 +41,61 @@ func TestProvider(t *testing.T) {
 		t.Fatalf("Create client: %v", err)
 	}
 
-	prv := &pkgv1.Provider{
-		ObjectMeta: metav1.ObjectMeta{Name: internal.SuiteName + "-provider"},
-		Spec: pkgv1.ProviderSpec{
+	fnc := &pkgv1.Function{
+		ObjectMeta: metav1.ObjectMeta{Name: internal.SuiteName + "-function"},
+		Spec: pkgv1.FunctionSpec{
 			PackageSpec: pkgv1.PackageSpec{
-				Package:                     "xpkg.upbound.io/crossplane-contrib/provider-nop:v0.2.1",
+				Package:                     "xpkg.upbound.io/crossplane-contrib/function-patch-and-transform:v0.7.0",
 				IgnoreCrossplaneConstraints: ptr.To(true),
 			},
 		},
 	}
 
-	if err := kube.Create(ctx, prv); err != nil {
-		t.Fatalf("Create provider %q: %v", prv.GetName(), err)
+	if err := kube.Create(ctx, fnc); err != nil {
+		t.Fatalf("Create function %q: %v", fnc.GetName(), err)
 	}
-	t.Logf("Created provider %q", prv.GetName())
+	t.Logf("Created function %q", fnc.GetName())
 
 	t.Cleanup(func() {
-		t.Logf("Cleaning up provider %q.", prv.GetName())
-		if err := kube.Get(ctx, types.NamespacedName{Name: prv.GetName()}, prv); resource.IgnoreNotFound(err) != nil {
-			t.Fatalf("Get provider %q: %v", prv.GetName(), err)
+		t.Logf("Cleaning up function %q.", fnc.GetName())
+		if err := kube.Get(ctx, types.NamespacedName{Name: fnc.GetName()}, fnc); resource.IgnoreNotFound(err) != nil {
+			t.Fatalf("Get function %q: %v", fnc.GetName(), err)
 		}
-		if err := kube.Delete(ctx, prv); resource.IgnoreNotFound(err) != nil {
-			t.Fatalf("Delete provider %q: %v", prv.GetName(), err)
+		if err := kube.Delete(ctx, fnc); resource.IgnoreNotFound(err) != nil {
+			t.Fatalf("Delete function %q: %v", fnc.GetName(), err)
 		}
-		t.Logf("Deleted provider %q", prv.GetName())
+		t.Logf("Deleted function %q", fnc.GetName())
 	})
 
 	t.Run("BecomesInstalledAndHealthy", func(t *testing.T) {
-		t.Log("Testing that the provider's Healthy and Installed status conditions become 'True'.")
+		t.Log("Testing that the function's Healthy and Installed status conditions become 'True'.")
 		if err := wait.PollUntilContextTimeout(ctx, 10*time.Second, 90*time.Second, true, func(ctx context.Context) (done bool, err error) {
-			if err := kube.Get(ctx, types.NamespacedName{Name: prv.GetName()}, prv); err != nil {
+			if err := kube.Get(ctx, types.NamespacedName{Name: fnc.GetName()}, fnc); err != nil {
 				return false, err
 			}
 
-			if prv.GetCondition(pkgv1.TypeHealthy).Status != corev1.ConditionTrue {
-				t.Logf("Provider %q is not yet Healthy", prv.GetName())
+			if fnc.GetCondition(pkgv1.TypeHealthy).Status != corev1.ConditionTrue {
+				t.Logf("Function %q is not yet Healthy", fnc.GetName())
 				return false, nil
 			}
 
-			if prv.GetCondition(pkgv1.TypeInstalled).Status != corev1.ConditionTrue {
-				t.Logf("Provider %q is not yet Installed", prv.GetName())
+			if fnc.GetCondition(pkgv1.TypeInstalled).Status != corev1.ConditionTrue {
+				t.Logf("Function %q is not yet Installed", fnc.GetName())
 				return false, nil
 			}
 
-			t.Logf("Provider %q is Healthy and Installed", prv.GetName())
+			t.Logf("Function %q is Healthy and Installed", fnc.GetName())
 			return true, nil
 		}); err != nil {
-			t.Errorf("Provider %q never became Healthy and Installed: %v", prv.GetName(), err)
+			t.Errorf("Function %q never became Healthy and Installed: %v", fnc.GetName(), err)
 		}
 	})
 
 	t.Run("RevisionBecomesHealthyAndDeploysObjects", func(t *testing.T) {
-		t.Log("Testing that the provider's revision's Healthy status condition becomes 'True', and that it deploys its objects.")
+		t.Log("Testing that the function's revision's Healthy status condition becomes 'True', and that it deploys its objects.")
 
 		if err := wait.PollUntilContextTimeout(ctx, 10*time.Second, 90*time.Second, true, func(ctx context.Context) (done bool, err error) {
-			l := &pkgv1.ProviderRevisionList{}
+			l := &pkgv1.FunctionRevisionList{}
 			if err := kube.List(ctx, l); err != nil {
 				return false, err
 			}
@@ -103,10 +103,10 @@ func TestProvider(t *testing.T) {
 			for _, rev := range l.Items {
 				for _, o := range rev.GetOwnerReferences() {
 					// This is not the revision we're looking for.
-					if o.Name != prv.GetName() {
+					if o.Name != fnc.GetName() {
 						continue
 					}
-					t.Logf("Found revision %q owned by provider %q", rev.GetName(), prv.GetName())
+					t.Logf("Found revision %q owned by function %q", rev.GetName(), fnc.GetName())
 
 					if rev.GetCondition(pkgv1.TypeHealthy).Status != corev1.ConditionTrue {
 						t.Logf("Revision %q is not yet Healthy", rev.GetName())
@@ -116,7 +116,7 @@ func TestProvider(t *testing.T) {
 					t.Logf("Revision %q is Healthy", rev.GetName())
 
 					// We expect the revision to deploy one object - the CRD of
-					// the NopResource managed resource.
+					// the Resources function input object.
 					if len(rev.Status.ObjectRefs) != 1 {
 						t.Logf("Revision %q has deployed %d objects, want %d", rev.GetName(), len(rev.Status.ObjectRefs), 1)
 						return false, nil
@@ -143,7 +143,7 @@ func TestProvider(t *testing.T) {
 
 			return false, nil
 		}); err != nil {
-			t.Errorf("Provider %q's revision never became Healthy and deployed its objects: %v", prv.GetName(), err)
+			t.Errorf("Function %q's revision never became Healthy and deployed its objects: %v", fnc.GetName(), err)
 		}
 	})
 }

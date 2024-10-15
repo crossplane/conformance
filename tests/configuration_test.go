@@ -44,7 +44,7 @@ func TestConfiguration(t *testing.T) {
 	// This configuration is defined in the testdata/configuration directory
 	// of this repository. It is built and pushed by CI/CD.
 	cfg := &pkgv1.Configuration{
-		ObjectMeta: metav1.ObjectMeta{Name: internal.SuiteName},
+		ObjectMeta: metav1.ObjectMeta{Name: internal.SuiteName + "-configuration"},
 		Spec: pkgv1.ConfigurationSpec{
 			PackageSpec: pkgv1.PackageSpec{
 				Package:                     "index.docker.io/crossplane/conformance-testdata-configuration:latest",

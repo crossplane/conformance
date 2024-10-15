@@ -31,6 +31,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/utils/ptr"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/crossplane/conformance/internal"
 	xpv1 "github.com/crossplane/crossplane-runtime/apis/common/v1"
@@ -651,18 +652,6 @@ func TestCompositeResourceDefinition(t *testing.T) {
 }
 
 func TestCompositeResource(t *testing.T) {
-	asJSON := func(val interface{}) kextv1.JSON {
-		raw, err := json.Marshal(val)
-		if err != nil {
-			t.Fatal(err)
-		}
-		res := kextv1.JSON{}
-		if err := json.Unmarshal(raw, &res); err != nil {
-			t.Fatal(err)
-		}
-		return res
-	}
-
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	t.Cleanup(cancel)
 
@@ -671,130 +660,11 @@ func TestCompositeResource(t *testing.T) {
 		t.Fatalf("Create client: %v", err)
 	}
 
-	prv := &pkgv1.Provider{
-		ObjectMeta: metav1.ObjectMeta{Name: internal.SuiteName},
-		Spec: pkgv1.ProviderSpec{
-			PackageSpec: pkgv1.PackageSpec{
-				Package:                     "xpkg.upbound.io/crossplane-contrib/provider-nop:v0.2.1",
-				IgnoreCrossplaneConstraints: ptr.To(true),
-			},
-		},
-	}
+	// create provider that will be used in this test
+	createProvider(ctx, t, kube)
 
-	if err := kube.Create(ctx, prv); err != nil {
-		t.Fatalf("Create provider %q: %v", prv.GetName(), err)
-	}
-	t.Logf("Created provider %q", prv.GetName())
-
-	t.Cleanup(func() {
-		t.Logf("Cleaning up provider %q.", prv.GetName())
-		if err := kube.Get(ctx, types.NamespacedName{Name: prv.GetName()}, prv); resource.IgnoreNotFound(err) != nil {
-			t.Fatalf("Get provider %q: %v", prv.GetName(), err)
-		}
-		if err := kube.Delete(ctx, prv); resource.IgnoreNotFound(err) != nil {
-			t.Fatalf("Delete provider %q: %v", prv.GetName(), err)
-		}
-		t.Logf("Deleted provider %q", prv.GetName())
-	})
-
-	xrd := &extv1.CompositeResourceDefinition{
-		ObjectMeta: metav1.ObjectMeta{Name: "clusterconformances.test.crossplane.io"},
-		Spec: extv1.CompositeResourceDefinitionSpec{
-			Group: "test.crossplane.io",
-			Names: kextv1.CustomResourceDefinitionNames{
-				Kind:     "ClusterConformance",
-				ListKind: "ClusterConformanceList",
-				Plural:   "clusterconformances",
-				Singular: "clusterconformance",
-			},
-			ClaimNames: &kextv1.CustomResourceDefinitionNames{
-				Kind:     "Conformance",
-				ListKind: "ConformanceList",
-				Plural:   "conformances",
-				Singular: "conformance",
-			},
-			ConnectionSecretKeys: []string{internal.SuiteName},
-			Versions: []extv1.CompositeResourceDefinitionVersion{{
-				Name:          "v1alpha1",
-				Served:        true,
-				Referenceable: true,
-				Schema: &extv1.CompositeResourceValidation{
-					OpenAPIV3Schema: runtime.RawExtension{Raw: []byte(`{
-						"type": "object",
-						"properties": {
-							"spec": {
-								"type": "object",
-								"properties": {
-									"parameters": {
-										"type": "object",
-										"properties": {
-											"a": {"type": "string"},
-											"b": {"type": "integer"},
-											"c": {"type": "boolean"}
-										}
-									}
-								},
-								"required": ["parameters"]
-							},
-							"status": {
-								"type": "object",
-								"properties": {
-									"a": {"type": "string"},
-									"b": {"type": "integer"},
-									"c": {"type": "boolean"}
-								}
-							}
-						}
-					}`)},
-				},
-			}},
-		},
-	}
-	// XRDs take a while to delete, so we try a few times in case creates are
-	// failing due to an old XRD hanging around.
-	if err := wait.PollUntilContextTimeout(ctx, 10*time.Second, 60*time.Second, true, func(ctx context.Context) (done bool, err error) {
-		if err := kube.Create(ctx, xrd); err != nil {
-			t.Logf("Create XRD %q: %v", xrd.GetName(), err)
-			return false, nil
-		}
-		return true, nil
-	}); err != nil {
-		t.Fatalf("Create XRD %q: %v", xrd.GetName(), err)
-	}
-	t.Logf("Created XRD %q", xrd.GetName())
-
-	t.Cleanup(func() {
-		t.Logf("Cleaning up XRD %q.", xrd.GetName())
-		if err := kube.Get(ctx, types.NamespacedName{Name: xrd.GetName()}, xrd); resource.IgnoreNotFound(err) != nil {
-			t.Fatalf("Get XRD %q: %v", xrd.GetName(), err)
-		}
-		if err := kube.Delete(ctx, xrd); resource.IgnoreNotFound(err) != nil {
-			t.Fatalf("Delete XRD %q: %v", xrd.GetName(), err)
-		}
-		t.Logf("Deleted XRD %q", xrd.GetName())
-	})
-
-	t.Log("Waiting for the XRD's Established and Offered status conditions to become 'True'.")
-	if err := wait.PollUntilContextTimeout(ctx, 10*time.Second, 60*time.Second, true, func(ctx context.Context) (done bool, err error) {
-		if err := kube.Get(ctx, types.NamespacedName{Name: xrd.GetName()}, xrd); err != nil {
-			return false, err
-		}
-
-		if xrd.Status.GetCondition(extv1.TypeEstablished).Status != corev1.ConditionTrue {
-			t.Logf("XRD %q is not yet Established", xrd.GetName())
-			return false, nil
-		}
-
-		if xrd.Status.GetCondition(extv1.TypeOffered).Status != corev1.ConditionTrue {
-			t.Logf("XRD %q is not yet Offered", xrd.GetName())
-			return false, nil
-		}
-
-		t.Logf("XRD %q is Established and Offered", xrd.GetName())
-		return true, nil
-	}); err != nil {
-		t.Errorf("XRD %q never became Established and Offered: %v", xrd.GetName(), err)
-	}
+	// create XRD and verify it becomes established/offered
+	xrd := createAndTestXRD(ctx, t, kube)
 
 	comp := &extv1.Composition{
 		ObjectMeta: metav1.ObjectMeta{
@@ -821,7 +691,7 @@ func TestCompositeResource(t *testing.T) {
 							ToFieldPath:   ptr.To("metadata.annotations[nop.crossplane.io/a]"),
 							Transforms: []extv1.Transform{{
 								Type: extv1.TransformTypeMap,
-								Map:  &extv1.MapTransform{Pairs: map[string]kextv1.JSON{"a": asJSON("A")}},
+								Map:  &extv1.MapTransform{Pairs: map[string]kextv1.JSON{"a": asJSON(t, "A")}},
 							}},
 							Policy: &extv1.PatchPolicy{
 								FromFieldPath: func() *extv1.FromFieldPathPolicy { p := extv1.FromFieldPathPolicyRequired; return &p }(),
@@ -966,6 +836,417 @@ func TestCompositeResource(t *testing.T) {
 		t.Logf("Deleted composition %q", comp.GetName())
 	})
 
+	// create a namespace for the claim to live in
+	createNamespace(ctx, t, kube)
+
+	// create the claim and wait for it to become ready
+	xrc := createAndTestClaim(ctx, t, kube, xrd)
+
+	// test the composite resource, wait for it to become ready
+	testXR(ctx, t, kube, xrd, xrc)
+}
+
+func TestCompositeResourcePipelineMode(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	t.Cleanup(cancel)
+
+	kube, err := internal.NewClient()
+	if err != nil {
+		t.Fatalf("Create client: %v", err)
+	}
+
+	// create provider that will be used in this test
+	createProvider(ctx, t, kube)
+
+	// create and wait for function to be installed/healthy that will be used in this test
+	fnc := &pkgv1.Function{
+		ObjectMeta: metav1.ObjectMeta{Name: internal.SuiteName + "-function"},
+		Spec: pkgv1.FunctionSpec{
+			PackageSpec: pkgv1.PackageSpec{
+				Package:                     "xpkg.upbound.io/crossplane-contrib/function-patch-and-transform:v0.7.0",
+				IgnoreCrossplaneConstraints: ptr.To(true),
+			},
+		},
+	}
+
+	if err := kube.Create(ctx, fnc); err != nil {
+		t.Fatalf("Create function %q: %v", fnc.GetName(), err)
+	}
+	t.Logf("Created function %q", fnc.GetName())
+
+	t.Cleanup(func() {
+		t.Logf("Cleaning up function %q.", fnc.GetName())
+		if err := kube.Get(ctx, types.NamespacedName{Name: fnc.GetName()}, fnc); resource.IgnoreNotFound(err) != nil {
+			t.Fatalf("Get function %q: %v", fnc.GetName(), err)
+		}
+		if err := kube.Delete(ctx, fnc); resource.IgnoreNotFound(err) != nil {
+			t.Fatalf("Delete function %q: %v", fnc.GetName(), err)
+		}
+		t.Logf("Deleted function %q", fnc.GetName())
+	})
+
+	// create XRD and verify it becomes established/offered
+	xrd := createAndTestXRD(ctx, t, kube)
+
+	// create a composition that will create NopResources and patch/transform
+	// values in an identical way to the TestCompositeResource test, but using
+	// Pipeline mode that exercises functions (specifically
+	// function-patch-and-transform in this case).
+	comp := &extv1.Composition{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: internal.SuiteName,
+			Labels: map[string]string{
+				"crossplane.io/test": internal.SuiteName,
+			},
+		},
+		Spec: extv1.CompositionSpec{
+			CompositeTypeRef: extv1.TypeReference{
+				APIVersion: "test.crossplane.io/v1alpha1",
+				Kind:       "ClusterConformance",
+			},
+			Mode: ptr.To(extv1.CompositionModePipeline),
+			Pipeline: []extv1.PipelineStep{
+				{
+					Step: "compose-resources",
+					FunctionRef: extv1.FunctionReference{
+						Name: fnc.GetName(),
+					},
+					// the raw input below was obtained by taking the runtime
+					// yaml of the composition used in the TestCompositeResource
+					// test and running crossplane beta convert
+					// pipeline-composition on it, then converting that yaml
+					// output to json.
+					Input: &runtime.RawExtension{
+						Raw: []byte(fmt.Sprintf(`{
+							"apiVersion": "pt.fn.crossplane.io/v1beta1",
+							"environment": null,
+							"kind": "Resources",
+							"patchSets": [
+								{
+								"name": "fromcomposite",
+								"patches": [
+									{
+									"fromFieldPath": "spec.parameters.a",
+									"policy": {
+										"fromFieldPath": "Required"
+									},
+									"toFieldPath": "metadata.annotations[nop.crossplane.io/a]",
+									"transforms": [
+										{
+										"map": {
+											"a": "A"
+										},
+										"type": "map"
+										}
+									],
+									"type": "FromCompositeFieldPath"
+									},
+									{
+									"fromFieldPath": "spec.parameters.b",
+									"policy": {
+										"fromFieldPath": "Required"
+									},
+									"toFieldPath": "metadata.annotations[nop.crossplane.io/b]",
+									"transforms": [
+										{
+										"math": {
+											"multiply": 2,
+											"type": "Multiply"
+										},
+										"type": "math"
+										},
+										{
+										"convert": {
+											"toType": "string"
+										},
+										"type": "convert"
+										}
+									],
+									"type": "FromCompositeFieldPath"
+									},
+									{
+									"fromFieldPath": "spec.parameters.c",
+									"policy": {
+										"fromFieldPath": "Required"
+									},
+									"toFieldPath": "metadata.annotations[nop.crossplane.io/c]",
+									"transforms": [
+										{
+										"convert": {
+											"toType": "string"
+										},
+										"type": "convert"
+										}
+									],
+									"type": "FromCompositeFieldPath"
+									}
+								]
+								},
+								{
+								"name": "tocomposite",
+								"patches": [
+									{
+									"fromFieldPath": "metadata.annotations[nop.crossplane.io/a]",
+									"toFieldPath": "status.a",
+									"type": "ToCompositeFieldPath"
+									},
+									{
+									"fromFieldPath": "metadata.annotations[nop.crossplane.io/b]",
+									"toFieldPath": "status.b",
+									"transforms": [
+										{
+										"convert": {
+											"toType": "int"
+										},
+										"type": "convert"
+										}
+									],
+									"type": "ToCompositeFieldPath"
+									},
+									{
+									"fromFieldPath": "metadata.annotations[nop.crossplane.io/c]",
+									"toFieldPath": "status.c",
+									"transforms": [
+										{
+										"convert": {
+											"toType": "bool"
+										},
+										"type": "convert"
+										}
+									],
+									"type": "ToCompositeFieldPath"
+									}
+								]
+								}
+							],
+							"resources": [
+								{
+								"base": {
+									"apiVersion": "nop.crossplane.io/v1alpha1",
+									"kind": "NopResource",
+									"spec": {
+									"forProvider": {
+										"conditionAfter": [
+										{
+											"conditionStatus": "True",
+											"conditionType": "Ready",
+											"time": "1s"
+										}
+										]
+									},
+									"writeConnectionSecretToRef": {
+										"namespace": "%s"
+									}
+									}
+								},
+								"connectionDetails": [
+									{
+									"name": "%s",
+									"type": "FromValue",
+									"value": "%s"
+									}
+								],
+								"name": "nop",
+								"patches": [
+									{
+									"fromFieldPath": "metadata.uid",
+									"toFieldPath": "spec.writeConnectionSecretToRef.name",
+									"transforms": [
+										{
+										"string": {
+											"fmt": "%%s-nopresource",
+											"type": "Format"
+										},
+										"type": "string"
+										}
+									],
+									"type": "FromCompositeFieldPath"
+									},
+									{
+									"patchSetName": "fromcomposite",
+									"type": "PatchSet"
+									},
+									{
+									"patchSetName": "tocomposite",
+									"type": "PatchSet"
+									}
+								],
+								"readinessChecks": [
+									{
+									"matchCondition": {
+										"status": "True",
+										"type": "Ready"
+									},
+									"type": "MatchCondition"
+									}
+								]
+								}
+							]
+						}`, internal.SuiteName, internal.SuiteName, internal.SuiteName)),
+					},
+				},
+			},
+			WriteConnectionSecretsToNamespace: ptr.To(internal.SuiteName),
+		},
+	}
+	if err := kube.Create(ctx, comp); err != nil {
+		t.Fatalf("Create composition %q: %v", comp.GetName(), err)
+	}
+	t.Logf("Created composition %q", comp.GetName())
+
+	t.Cleanup(func() {
+		t.Logf("Cleaning up composition %q.", comp.GetName())
+		if err := kube.Get(ctx, types.NamespacedName{Name: comp.GetName()}, comp); resource.IgnoreNotFound(err) != nil {
+			t.Fatalf("Get composition %q: %v", comp.GetName(), err)
+		}
+		if err := kube.Delete(ctx, comp); resource.IgnoreNotFound(err) != nil {
+			t.Fatalf("Delete composition %q: %v", comp.GetName(), err)
+		}
+		t.Logf("Deleted composition %q", comp.GetName())
+	})
+
+	// create a namespace for the claim to live in
+	createNamespace(ctx, t, kube)
+
+	// create the claim and wait for it to become ready
+	xrc := createAndTestClaim(ctx, t, kube, xrd)
+
+	// test the composite resource, wait for it to become ready
+	testXR(ctx, t, kube, xrd, xrc)
+}
+
+func createProvider(ctx context.Context, t *testing.T, kube client.Client) {
+	prv := &pkgv1.Provider{
+		ObjectMeta: metav1.ObjectMeta{Name: internal.SuiteName},
+		Spec: pkgv1.ProviderSpec{
+			PackageSpec: pkgv1.PackageSpec{
+				Package:                     "xpkg.upbound.io/crossplane-contrib/provider-nop:v0.2.1",
+				IgnoreCrossplaneConstraints: ptr.To(true),
+			},
+		},
+	}
+
+	if err := kube.Create(ctx, prv); err != nil {
+		t.Fatalf("Create provider %q: %v", prv.GetName(), err)
+	}
+	t.Logf("Created provider %q", prv.GetName())
+
+	t.Cleanup(func() {
+		t.Logf("Cleaning up provider %q.", prv.GetName())
+		if err := kube.Get(ctx, types.NamespacedName{Name: prv.GetName()}, prv); resource.IgnoreNotFound(err) != nil {
+			t.Fatalf("Get provider %q: %v", prv.GetName(), err)
+		}
+		if err := kube.Delete(ctx, prv); resource.IgnoreNotFound(err) != nil {
+			t.Fatalf("Delete provider %q: %v", prv.GetName(), err)
+		}
+		t.Logf("Deleted provider %q", prv.GetName())
+	})
+}
+
+func createAndTestXRD(ctx context.Context, t *testing.T, kube client.Client) *extv1.CompositeResourceDefinition {
+	xrd := &extv1.CompositeResourceDefinition{
+		ObjectMeta: metav1.ObjectMeta{Name: "clusterconformances.test.crossplane.io"},
+		Spec: extv1.CompositeResourceDefinitionSpec{
+			Group: "test.crossplane.io",
+			Names: kextv1.CustomResourceDefinitionNames{
+				Kind:     "ClusterConformance",
+				ListKind: "ClusterConformanceList",
+				Plural:   "clusterconformances",
+				Singular: "clusterconformance",
+			},
+			ClaimNames: &kextv1.CustomResourceDefinitionNames{
+				Kind:     "Conformance",
+				ListKind: "ConformanceList",
+				Plural:   "conformances",
+				Singular: "conformance",
+			},
+			ConnectionSecretKeys: []string{internal.SuiteName},
+			Versions: []extv1.CompositeResourceDefinitionVersion{{
+				Name:          "v1alpha1",
+				Served:        true,
+				Referenceable: true,
+				Schema: &extv1.CompositeResourceValidation{
+					OpenAPIV3Schema: runtime.RawExtension{Raw: []byte(`{
+						"type": "object",
+						"properties": {
+							"spec": {
+								"type": "object",
+								"properties": {
+									"parameters": {
+										"type": "object",
+										"properties": {
+											"a": {"type": "string"},
+											"b": {"type": "integer"},
+											"c": {"type": "boolean"}
+										}
+									}
+								},
+								"required": ["parameters"]
+							},
+							"status": {
+								"type": "object",
+								"properties": {
+									"a": {"type": "string"},
+									"b": {"type": "integer"},
+									"c": {"type": "boolean"}
+								}
+							}
+						}
+					}`)},
+				},
+			}},
+		},
+	}
+	// XRDs take a while to delete, so we try a few times in case creates are
+	// failing due to an old XRD hanging around.
+	if err := wait.PollUntilContextTimeout(ctx, 10*time.Second, 60*time.Second, true, func(ctx context.Context) (done bool, err error) {
+		if err := kube.Create(ctx, xrd); err != nil {
+			t.Logf("Create XRD %q: %v", xrd.GetName(), err)
+			return false, nil
+		}
+		return true, nil
+	}); err != nil {
+		t.Fatalf("Create XRD %q: %v", xrd.GetName(), err)
+	}
+	t.Logf("Created XRD %q", xrd.GetName())
+
+	t.Cleanup(func() {
+		t.Logf("Cleaning up XRD %q.", xrd.GetName())
+		if err := kube.Get(ctx, types.NamespacedName{Name: xrd.GetName()}, xrd); resource.IgnoreNotFound(err) != nil {
+			t.Fatalf("Get XRD %q: %v", xrd.GetName(), err)
+		}
+		if err := kube.Delete(ctx, xrd); resource.IgnoreNotFound(err) != nil {
+			t.Fatalf("Delete XRD %q: %v", xrd.GetName(), err)
+		}
+		t.Logf("Deleted XRD %q", xrd.GetName())
+	})
+
+	t.Log("Waiting for the XRD's Established and Offered status conditions to become 'True'.")
+	if err := wait.PollUntilContextTimeout(ctx, 10*time.Second, 60*time.Second, true, func(ctx context.Context) (done bool, err error) {
+		if err := kube.Get(ctx, types.NamespacedName{Name: xrd.GetName()}, xrd); err != nil {
+			return false, err
+		}
+
+		if xrd.Status.GetCondition(extv1.TypeEstablished).Status != corev1.ConditionTrue {
+			t.Logf("XRD %q is not yet Established", xrd.GetName())
+			return false, nil
+		}
+
+		if xrd.Status.GetCondition(extv1.TypeOffered).Status != corev1.ConditionTrue {
+			t.Logf("XRD %q is not yet Offered", xrd.GetName())
+			return false, nil
+		}
+
+		t.Logf("XRD %q is Established and Offered", xrd.GetName())
+		return true, nil
+	}); err != nil {
+		t.Errorf("XRD %q never became Established and Offered: %v", xrd.GetName(), err)
+	}
+
+	return xrd
+}
+
+func createNamespace(ctx context.Context, t *testing.T, kube client.Client) {
 	ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: internal.SuiteName}}
 	if err := kube.Create(ctx, ns); err != nil {
 		t.Fatalf("Create namespace %q: %v", ns.GetName(), err)
@@ -982,7 +1263,9 @@ func TestCompositeResource(t *testing.T) {
 		}
 		t.Logf("Deleted namespace %q", ns.GetName())
 	})
+}
 
+func createAndTestClaim(ctx context.Context, t *testing.T, kube client.Client, xrd *extv1.CompositeResourceDefinition) *claim.Unstructured {
 	xrc := claim.New(claim.WithGroupVersionKind(schema.GroupVersionKind{
 		Group:   xrd.Spec.Group,
 		Version: xrd.Spec.Versions[0].Name,
@@ -1072,6 +1355,10 @@ func TestCompositeResource(t *testing.T) {
 		}
 	})
 
+	return xrc
+}
+
+func testXR(ctx context.Context, t *testing.T, kube client.Client, xrd *extv1.CompositeResourceDefinition, xrc *claim.Unstructured) {
 	xrSecretRef := &xpv1.SecretReference{}
 	t.Run("CompositeBecomesReady", func(t *testing.T) {
 		t.Log("Testing that the composite resource becomes Ready.")
@@ -1117,4 +1404,16 @@ func TestCompositeResource(t *testing.T) {
 			t.Errorf("Composite resource %q connection secret %q: -want, +got\n%s", xrc.GetResourceReference().Name, s.GetName(), diff)
 		}
 	})
+}
+
+func asJSON(t *testing.T, val interface{}) kextv1.JSON {
+	raw, err := json.Marshal(val)
+	if err != nil {
+		t.Fatal(err)
+	}
+	res := kextv1.JSON{}
+	if err := json.Unmarshal(raw, &res); err != nil {
+		t.Fatal(err)
+	}
+	return res
 }
