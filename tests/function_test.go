@@ -45,7 +45,7 @@ func TestFunction(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{Name: internal.SuiteName + "-function"},
 		Spec: pkgv1.FunctionSpec{
 			PackageSpec: pkgv1.PackageSpec{
-				Package:                     "xpkg.upbound.io/crossplane-contrib/function-patch-and-transform:v0.7.0",
+				Package:                     "xpkg.crossplane.io/crossplane-contrib/function-patch-and-transform:v0.9.0",
 				IgnoreCrossplaneConstraints: ptr.To(true),
 			},
 		},
@@ -92,7 +92,7 @@ func TestFunction(t *testing.T) {
 	})
 
 	t.Run("RevisionBecomesHealthyAndDeploysObjects", func(t *testing.T) {
-		t.Log("Testing that the function's revision's Healthy status condition becomes 'True', and that it deploys its objects.")
+		t.Log("Testing that the function's revision's Healthy status conditions become 'True', and that it deploys its objects.")
 
 		if err := wait.PollUntilContextTimeout(ctx, 10*time.Second, 90*time.Second, true, func(ctx context.Context) (done bool, err error) {
 			l := &pkgv1.FunctionRevisionList{}
@@ -108,12 +108,17 @@ func TestFunction(t *testing.T) {
 					}
 					t.Logf("Found revision %q owned by function %q", rev.GetName(), fnc.GetName())
 
-					if rev.GetCondition(pkgv1.TypeHealthy).Status != corev1.ConditionTrue {
-						t.Logf("Revision %q is not yet Healthy", rev.GetName())
+					if rev.GetCondition(pkgv1.TypeRevisionHealthy).Status != corev1.ConditionTrue {
+						t.Logf("Revision %q is not yet RevisionHealthy", rev.GetName())
 						return false, nil
 					}
 
-					t.Logf("Revision %q is Healthy", rev.GetName())
+					if rev.GetCondition(pkgv1.TypeRuntimeHealthy).Status != corev1.ConditionTrue {
+						t.Logf("Revision %q is not yet RuntimeHealthy", rev.GetName())
+						return false, nil
+					}
+
+					t.Logf("Revision %q is RevisionHealthy and RuntimeHealthy", rev.GetName())
 
 					// We expect the revision to deploy one object - the CRD of
 					// the Resources function input object.

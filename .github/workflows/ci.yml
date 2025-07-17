@@ -263,8 +263,6 @@ jobs:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_USR }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_PSW }}
           GIT_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          DOCS_GIT_USR: ${{ secrets.UPBOUND_BOT_GITHUB_USR }}
-          DOCS_GIT_PSW: ${{ secrets.UPBOUND_BOT_GITHUB_PSW }}
 
       - name: Promote Artifacts in S3 and Docker Hub
         if: github.ref == 'refs/heads/master' && env.AWS_USR != '' && env.DOCKER_USR != ''
@@ -288,7 +286,7 @@ jobs:
           fetch-depth: 0
 
       # The tagger step uses the same logic in the build submodule to generate package tag
-      # https://github.com/upbound/build/blob/4f64913157a952dbe77cd9e05457d9abe695a1d4/makelib/common.mk#L193
+      # https://github.com/crossplane/build/blob/4f64913157a952dbe77cd9e05457d9abe695a1d4/makelib/common.mk#L193
       - name: Set Tag
         run: echo "::set-output name=VERSION_TAG::$(git describe --dirty --always --tags | sed 's/-/./2' | sed 's/-/./2' )"
         id: tagger

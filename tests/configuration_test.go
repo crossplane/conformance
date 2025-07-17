@@ -53,7 +53,7 @@ func TestConfiguration(t *testing.T) {
 		},
 	}
 
-	// The crossplane-conformance provider depends on xpkg.upbound.io/crossplane-contrib/provider-nop.
+	// The crossplane-conformance provider depends on xpkg.crossplane.io/crossplane-contrib/provider-nop.
 	prv := &pkgv1.Provider{ObjectMeta: metav1.ObjectMeta{Name: "crossplane-contrib-provider-nop"}}
 
 	if err := kube.Create(ctx, cfg); err != nil {
@@ -108,7 +108,7 @@ func TestConfiguration(t *testing.T) {
 	})
 
 	t.Run("RevisionBecomesHealthyAndDeploysObjects", func(t *testing.T) {
-		t.Log("Testing that the configuration's revision's Healthy status condition becomes 'True', and that it deploys its objects.")
+		t.Log("Testing that the configuration's revision's Healthy status conditions become 'True', and that it deploys its objects.")
 
 		if err := wait.PollUntilContextTimeout(ctx, 10*time.Second, 90*time.Second, true, func(ctx context.Context) (done bool, err error) {
 			l := &pkgv1.ConfigurationRevisionList{}
@@ -124,12 +124,17 @@ func TestConfiguration(t *testing.T) {
 					}
 					t.Logf("Found revision %q owned by configuration %q", rev.GetName(), cfg.GetName())
 
-					if rev.GetCondition(pkgv1.TypeHealthy).Status != corev1.ConditionTrue {
-						t.Logf("Revision %q is not yet Healthy", rev.GetName())
+					if rev.GetCondition(pkgv1.TypeRevisionHealthy).Status != corev1.ConditionTrue {
+						t.Logf("Revision %q is not yet RevisionHealthy", rev.GetName())
 						return false, nil
 					}
 
-					t.Logf("Revision %q is Healthy", rev.GetName())
+					if rev.GetCondition(pkgv1.TypeRuntimeHealthy).Status != corev1.ConditionTrue {
+						t.Logf("Revision %q is not yet RuntimeHealthy", rev.GetName())
+						return false, nil
+					}
+
+					t.Logf("Revision %q is RevisionHealthy and RuntimeHealthy", rev.GetName())
 
 					// We expect the revision to deploy two objects; an XRD
 					// and a Composition.
