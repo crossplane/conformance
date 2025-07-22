@@ -16,3 +16,6 @@ cover.out
 /.tool-versions
 
 *.xpkg
+
+/.claude
+CLAUDE.md

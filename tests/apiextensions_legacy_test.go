@@ -588,10 +588,10 @@ func TestCompositeResourceLegacy(t *testing.T) {
 	}
 
 	// create provider that will be used in this test
-	createProvider(ctx, t, kube)
+	internal.CreateProvider(ctx, t, kube, "xpkg.crossplane.io/crossplane-contrib/provider-nop:v0.4.0")
 
 	// create and wait for function to be installed/healthy that will be used in this test
-	fnc := createFunction(ctx, t, kube, "xpkg.crossplane.io/crossplane-contrib/function-patch-and-transform:v0.9.0")
+	fnc := internal.CreateFunction(ctx, t, kube, "xpkg.crossplane.io/crossplane-contrib/function-patch-and-transform:v0.9.0")
 
 	// create XRD and verify it becomes established/offered
 	xrd := createAndTestXRDLegacy(ctx, t, kube)
@@ -602,44 +602,13 @@ func TestCompositeResourceLegacy(t *testing.T) {
 	createCompositionLegacy(ctx, t, kube, "LegacyClusterConformance", fnc)
 
 	// create a namespace for the claim to live in
-	createNamespace(ctx, t, kube)
+	internal.CreateNamespace(ctx, t, kube)
 
 	// create the claim and wait for it to become ready
 	xrc := createAndTestClaimLegacy(ctx, t, kube, xrd)
 
 	// test the composite resource, wait for it to become ready
 	testXRLegacy(ctx, t, kube, xrd, xrc)
-}
-
-// createProvider creates a provider (provider-nop) that will be used during
-// testing and ensures its clean up.
-func createProvider(ctx context.Context, t *testing.T, kube client.Client) {
-	t.Helper()
-	prv := &pkgv1.Provider{
-		ObjectMeta: metav1.ObjectMeta{Name: internal.SuiteName},
-		Spec: pkgv1.ProviderSpec{
-			PackageSpec: pkgv1.PackageSpec{
-				Package:                     "xpkg.crossplane.io/crossplane-contrib/provider-nop:v0.4.0",
-				IgnoreCrossplaneConstraints: ptr.To(true),
-			},
-		},
-	}
-
-	if err := kube.Create(ctx, prv); err != nil {
-		t.Fatalf("Create provider %q: %v", prv.GetName(), err)
-	}
-	t.Logf("Created provider %q", prv.GetName())
-
-	t.Cleanup(func() {
-		t.Logf("Cleaning up provider %q.", prv.GetName())
-		if err := kube.Get(ctx, types.NamespacedName{Name: prv.GetName()}, prv); resource.IgnoreNotFound(err) != nil {
-			t.Fatalf("Get provider %q: %v", prv.GetName(), err)
-		}
-		if err := kube.Delete(ctx, prv); resource.IgnoreNotFound(err) != nil {
-			t.Fatalf("Delete provider %q: %v", prv.GetName(), err)
-		}
-		t.Logf("Deleted provider %q", prv.GetName())
-	})
 }
 
 // createAndTestXRDLegacy creates an XRD to use in testing, ensures that it becomes

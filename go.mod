@@ -5,7 +5,7 @@ go 1.24.0
 toolchain go1.24.5
 
 require (
-	github.com/crossplane/crossplane v1.21.0-rc.0.0.20250710235007-a2f1fcdbc3ba
+	github.com/crossplane/crossplane v1.21.0-rc.0.0.20250716155604-1a331af4453e
 	github.com/crossplane/crossplane-runtime v1.21.0-rc.0.0.20250711220817-f5f608c93ded
 	github.com/google/addlicense v0.0.0-20210428195630-6d92264d7170
 	github.com/google/go-cmp v0.7.0

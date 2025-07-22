@@ -25,7 +25,6 @@ import (
 	kextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
@@ -605,7 +604,7 @@ func TestCompositeResourceNamespace(t *testing.T) {
 	}
 
 	// create and wait for function to be installed/healthy that will be used in this test
-	fnc := createFunction(ctx, t, kube, "xpkg.crossplane.io/crossplane-contrib/function-dummy:v0.4.1")
+	fnc := internal.CreateFunction(ctx, t, kube, "xpkg.crossplane.io/crossplane-contrib/function-dummy:v0.4.1")
 
 	// create namespaced XRD and verify it becomes established/offered
 	scope := extv2alpha1.CompositeResourceScopeNamespaced
@@ -638,7 +637,7 @@ func TestCompositeResourceNamespace(t *testing.T) {
 								"apiVersion": "v1",
 								"kind": "ConfigMap",
 								"data": {
-									"coolData": "I'm cool data!"
+									"coolData": "I'm cool composed resource data!"
 								}
 							},
 							"ready": "READY_TRUE"
@@ -657,18 +656,18 @@ func TestCompositeResourceNamespace(t *testing.T) {
 	createComposition(ctx, t, kube, xrdNames.Kind, fnc, input)
 
 	// create a namespace for the XR to live in
-	createNamespace(ctx, t, kube)
+	internal.CreateNamespace(ctx, t, kube)
 
 	// test the composite resource, wait for it to become ready
 	xr := createAndTestXR(ctx, t, kube, xrd)
 
 	// test the composed resource references
-	testXRResourceRefs(ctx, t, kube, xr, []resourceRef{
+	testXRResourceRefs(ctx, t, kube, xr, []internal.ResourceRef{
 		{
 			Kind:        "ConfigMap",
 			APIVersion:  "v1",
 			Namespace:   internal.SuiteName,
-			FieldValues: map[string]string{"data.coolData": "I'm cool data!"},
+			FieldValues: map[string]string{"data.coolData": "I'm cool composed resource data!"},
 		},
 	})
 }
@@ -687,7 +686,7 @@ func TestCompositeResourceCluster(t *testing.T) {
 	}
 
 	// create and wait for function to be installed/healthy that will be used in this test
-	fnc := createFunction(ctx, t, kube, "xpkg.crossplane.io/crossplane-contrib/function-dummy:v0.4.1")
+	fnc := internal.CreateFunction(ctx, t, kube, "xpkg.crossplane.io/crossplane-contrib/function-dummy:v0.4.1")
 
 	// create namespaced XRD and verify it becomes established/offered
 	scope := extv2alpha1.CompositeResourceScopeCluster
@@ -755,7 +754,7 @@ func TestCompositeResourceCluster(t *testing.T) {
 									"namespace": "%s"
 								},
 								"data": {
-									"coolData": "I'm cool data!"
+									"coolData": "I'm cool composed resource data!"
 								}
 							},
 							"ready": "READY_TRUE"
@@ -774,13 +773,13 @@ func TestCompositeResourceCluster(t *testing.T) {
 	createComposition(ctx, t, kube, xrdNames.Kind, fnc, input)
 
 	// create a namespace for the namespaced composed resources of the XR to live in
-	createNamespace(ctx, t, kube)
+	internal.CreateNamespace(ctx, t, kube)
 
 	// test the composite resource, wait for it to become ready
 	xr := createAndTestXR(ctx, t, kube, xrd)
 
 	// test the composed resource references
-	testXRResourceRefs(ctx, t, kube, xr, []resourceRef{
+	testXRResourceRefs(ctx, t, kube, xr, []internal.ResourceRef{
 		{
 			Kind:       "CustomResourceDefinition",
 			APIVersion: "apiextensions.k8s.io/v1",
@@ -793,42 +792,10 @@ func TestCompositeResourceCluster(t *testing.T) {
 			APIVersion: "v1",
 			Namespace:  internal.SuiteName,
 			FieldValues: map[string]string{
-				"data.coolData": "I'm cool data!",
+				"data.coolData": "I'm cool composed resource data!",
 			},
 		},
 	})
-}
-
-// createFunction creates a function from the given package that will be used
-// during testing and ensures its clean up.
-func createFunction(ctx context.Context, t *testing.T, kube client.Client, pkg string) *pkgv1.Function {
-	fnc := &pkgv1.Function{
-		ObjectMeta: metav1.ObjectMeta{Name: internal.SuiteName + "-function"},
-		Spec: pkgv1.FunctionSpec{
-			PackageSpec: pkgv1.PackageSpec{
-				Package:                     pkg,
-				IgnoreCrossplaneConstraints: ptr.To(true),
-			},
-		},
-	}
-
-	if err := kube.Create(ctx, fnc); err != nil {
-		t.Fatalf("Create function %q: %v", fnc.GetName(), err)
-	}
-	t.Logf("Created function %q", fnc.GetName())
-
-	t.Cleanup(func() {
-		t.Logf("Cleaning up function %q.", fnc.GetName())
-		if err := kube.Get(ctx, types.NamespacedName{Name: fnc.GetName()}, fnc); resource.IgnoreNotFound(err) != nil {
-			t.Fatalf("Get function %q: %v", fnc.GetName(), err)
-		}
-		if err := kube.Delete(ctx, fnc); resource.IgnoreNotFound(err) != nil {
-			t.Fatalf("Delete function %q: %v", fnc.GetName(), err)
-		}
-		t.Logf("Deleted function %q", fnc.GetName())
-	})
-
-	return fnc
 }
 
 // createAndTestXRD creates an XRD to use in testing, ensures that it becomes
@@ -967,28 +934,6 @@ func createComposition(ctx context.Context, t *testing.T, kube client.Client, xr
 	})
 }
 
-// createNamespace creates a test namespace to use during testing and ensures
-// its clean up.
-func createNamespace(ctx context.Context, t *testing.T, kube client.Client) {
-	t.Helper()
-	ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: internal.SuiteName}}
-	if err := kube.Create(ctx, ns); err != nil {
-		t.Fatalf("Create namespace %q: %v", ns.GetName(), err)
-	}
-	t.Logf("Created namespace %q", ns.GetName())
-
-	t.Cleanup(func() {
-		t.Logf("Cleaning up namespace %q.", ns.GetName())
-		if err := kube.Get(ctx, types.NamespacedName{Name: ns.GetName()}, ns); resource.IgnoreNotFound(err) != nil {
-			t.Fatalf("Get namespace %q: %v", ns.GetName(), err)
-		}
-		if err := kube.Delete(ctx, ns); resource.IgnoreNotFound(err) != nil {
-			t.Fatalf("Delete namespace %q: %v", ns.GetName(), err)
-		}
-		t.Logf("Deleted namespace %q", ns.GetName())
-	})
-}
-
 // createAndTestXR creates an XR for testing, verify that it becomes ready, and
 // verifies the results of the composition pipeline.
 func createAndTestXR(ctx context.Context, t *testing.T, kube client.Client, xrd *extv2alpha1.CompositeResourceDefinition) *composite.Unstructured {
@@ -1069,17 +1014,8 @@ func createAndTestXR(ctx context.Context, t *testing.T, kube client.Client, xrd 
 	return xr
 }
 
-// resourceRef represents an expected composed resource reference along with the
-// set of fields/values to verify
-type resourceRef struct {
-	Kind        string
-	APIVersion  string
-	Namespace   string
-	FieldValues map[string]string // Map of field paths to expected values
-}
-
 // testXRResourceRefs verifies that the given XR has the given set of resource references
-func testXRResourceRefs(ctx context.Context, t *testing.T, kube client.Client, xr *composite.Unstructured, wantRefs []resourceRef) {
+func testXRResourceRefs(ctx context.Context, t *testing.T, kube client.Client, xr *composite.Unstructured, wantRefs []internal.ResourceRef) {
 	t.Helper()
 
 	t.Run("CompositeResourceRefs", func(t *testing.T) {
@@ -1090,58 +1026,29 @@ func testXRResourceRefs(ctx context.Context, t *testing.T, kube client.Client, x
 				return false, err
 			}
 
-			actualRefs := xr.GetResourceReferences()
-
-			// verify the XR has composed the expected number of resource refs
-			if len(actualRefs) != len(wantRefs) {
-				t.Logf("XR %q has composed %d resources, want %d", xr.GetName(), len(actualRefs), len(wantRefs))
-				return false, nil
+			// convert the composed resource references into the common
+			// ResourceRef type that our test helper uses
+			actualRefs := make([]internal.ResourceRef, len(xr.GetResourceReferences()))
+			for i, ref := range xr.GetResourceReferences() {
+				namespace := ref.Namespace
+				if namespace == "" && xr.GetNamespace() != "" {
+					// namespaced XRs will not have a namespace explicitly
+					// listed in their references, but we'll need the namespace
+					// to look up the reference. Just use the namespace of the
+					// XR itself.
+					namespace = xr.GetNamespace()
+				}
+				actualRefs[i] = internal.ResourceRef{
+					Kind:       ref.Kind,
+					APIVersion: ref.APIVersion,
+					Namespace:  namespace,
+					Name:       ref.Name,
+				}
 			}
 
-			// Verify each expected resource exists and their objects have the expected values
-			for _, wantRef := range wantRefs {
-				var actualRef *corev1.ObjectReference
-
-				// look for this wanted ref in the actual refs (note we just
-				// match on kind, so this assumes only 1 resource ref of each
-				// kind)
-				for _, r := range actualRefs {
-					if wantRef.Kind == r.Kind {
-						actualRef = &r
-						break
-					}
-				}
-
-				if actualRef == nil {
-					t.Logf("XR %q missing expected resource ref with kind %q", xr.GetName(), wantRef.Kind)
-					return false, nil
-				}
-
-				// retrieve the actual composed resource using the reference we found
-				u := &unstructured.Unstructured{}
-				u.SetAPIVersion(actualRef.APIVersion)
-				u.SetKind(actualRef.Kind)
-				if err := kube.Get(ctx, types.NamespacedName{Name: actualRef.Name, Namespace: actualRef.Namespace}, u); err != nil {
-					if kerrors.IsNotFound(err) {
-						t.Logf("XR %q has not yet created %s %q", xr.GetName(), actualRef.Kind, actualRef.Name)
-						return false, nil
-					}
-					return false, err
-				}
-
-				// Verify the actual composed resource's fields match the expected values
-				paved := fieldpath.Pave(u.Object)
-				for fieldPath, expectedValue := range wantRef.FieldValues {
-					actualValue, err := paved.GetString(fieldPath)
-					if err != nil {
-						t.Logf("XR %q resource ref %q failed to get field %q: %v", xr.GetName(), actualRef.Name, fieldPath, err)
-						return false, nil
-					}
-					if actualValue != expectedValue {
-						t.Logf("XR %q resource ref %q field %q: want %q, got %q", xr.GetName(), actualRef.Name, fieldPath, expectedValue, actualValue)
-						return false, nil
-					}
-				}
+			if err := internal.TestResourceRefs(ctx, t, kube, actualRefs, wantRefs); err != nil {
+				t.Logf("XR %q does not have all expected resource refs: %v", xr.GetName(), err)
+				return false, nil
 			}
 
 			t.Logf("XR %q has all expected resource refs", xr.GetName())
