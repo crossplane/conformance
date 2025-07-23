@@ -36,24 +36,56 @@ func TestCustomResourceDefinitions(t *testing.T) {
 	}
 
 	t.Log("Testing that all core Crossplane CRDs exist and are well formed.")
-	cfg := kextv1.CustomResourceDefinition{ObjectMeta: metav1.ObjectMeta{Name: "configurations.pkg.crossplane.io"}}
-	cfgRev := kextv1.CustomResourceDefinition{ObjectMeta: metav1.ObjectMeta{Name: "configurationrevisions.pkg.crossplane.io"}}
 
-	prv := kextv1.CustomResourceDefinition{ObjectMeta: metav1.ObjectMeta{Name: "providers.pkg.crossplane.io"}}
-	prvRev := kextv1.CustomResourceDefinition{ObjectMeta: metav1.ObjectMeta{Name: "providerrevisions.pkg.crossplane.io"}}
+	wantCrds := []wantCRD{
+		{crd: kextv1.CustomResourceDefinition{ObjectMeta: metav1.ObjectMeta{Name: "configurations.pkg.crossplane.io"}}},
+		{crd: kextv1.CustomResourceDefinition{ObjectMeta: metav1.ObjectMeta{Name: "configurationrevisions.pkg.crossplane.io"}}},
 
-	xrd := kextv1.CustomResourceDefinition{ObjectMeta: metav1.ObjectMeta{Name: "compositeresourcedefinitions.apiextensions.crossplane.io"}}
-	cmp := kextv1.CustomResourceDefinition{ObjectMeta: metav1.ObjectMeta{Name: "compositions.apiextensions.crossplane.io"}}
+		{crd: kextv1.CustomResourceDefinition{ObjectMeta: metav1.ObjectMeta{Name: "providers.pkg.crossplane.io"}}},
+		{crd: kextv1.CustomResourceDefinition{ObjectMeta: metav1.ObjectMeta{Name: "providerrevisions.pkg.crossplane.io"}}},
 
-	for _, crd := range []kextv1.CustomResourceDefinition{cfg, cfgRev, prv, prvRev, xrd, cmp} {
+		{crd: kextv1.CustomResourceDefinition{ObjectMeta: metav1.ObjectMeta{Name: "functions.pkg.crossplane.io"}}},
+		{crd: kextv1.CustomResourceDefinition{ObjectMeta: metav1.ObjectMeta{Name: "functionrevisions.pkg.crossplane.io"}}},
+
+		{crd: kextv1.CustomResourceDefinition{ObjectMeta: metav1.ObjectMeta{Name: "deploymentruntimeconfigs.pkg.crossplane.io"}}},
+		{crd: kextv1.CustomResourceDefinition{ObjectMeta: metav1.ObjectMeta{Name: "imageconfigs.pkg.crossplane.io"}}},
+
+		{crd: kextv1.CustomResourceDefinition{ObjectMeta: metav1.ObjectMeta{Name: "compositeresourcedefinitions.apiextensions.crossplane.io"}}},
+		{crd: kextv1.CustomResourceDefinition{ObjectMeta: metav1.ObjectMeta{Name: "compositions.apiextensions.crossplane.io"}}},
+		{crd: kextv1.CustomResourceDefinition{ObjectMeta: metav1.ObjectMeta{Name: "compositionrevisions.apiextensions.crossplane.io"}}},
+
+		{crd: kextv1.CustomResourceDefinition{ObjectMeta: metav1.ObjectMeta{Name: "environmentconfigs.apiextensions.crossplane.io"}}},
+
+		{crd: kextv1.CustomResourceDefinition{ObjectMeta: metav1.ObjectMeta{Name: "managedresourcedefinitions.apiextensions.crossplane.io"}}},
+		{crd: kextv1.CustomResourceDefinition{ObjectMeta: metav1.ObjectMeta{Name: "managedresourceactivationpolicies.apiextensions.crossplane.io"}}},
+
+		{crd: kextv1.CustomResourceDefinition{ObjectMeta: metav1.ObjectMeta{Name: "usages.protection.crossplane.io"}}, namespaced: true},
+		{crd: kextv1.CustomResourceDefinition{ObjectMeta: metav1.ObjectMeta{Name: "clusterusages.protection.crossplane.io"}}},
+		{crd: kextv1.CustomResourceDefinition{ObjectMeta: metav1.ObjectMeta{Name: "usages.apiextensions.crossplane.io"}}},
+
+		{crd: kextv1.CustomResourceDefinition{ObjectMeta: metav1.ObjectMeta{Name: "operations.ops.crossplane.io"}}},
+		{crd: kextv1.CustomResourceDefinition{ObjectMeta: metav1.ObjectMeta{Name: "cronoperations.ops.crossplane.io"}}},
+		{crd: kextv1.CustomResourceDefinition{ObjectMeta: metav1.ObjectMeta{Name: "watchoperations.ops.crossplane.io"}}},
+	}
+
+	for _, w := range wantCrds {
+		crd := w.crd
 		if err := kube.Get(ctx, types.NamespacedName{Name: crd.GetName()}, &crd); err != nil {
 			t.Errorf("Cannot get CRD %q: %v", crd.GetName(), err)
 			continue
 		}
 
 		// TODO(negz): Just cmp.Diff the entire CRD spec?
-		if crd.Spec.Scope != kextv1.ClusterScoped {
-			t.Errorf("CRD %q must define a cluster scoped resource", crd.GetName())
+		switch w.namespaced {
+		case false:
+			if crd.Spec.Scope != kextv1.ClusterScoped {
+				t.Errorf("CRD %q should define a cluster scoped resource", crd.GetName())
+			}
+
+		case true:
+			if crd.Spec.Scope != kextv1.NamespaceScoped {
+				t.Errorf("CRD %q should define a namespaced scoped resource", crd.GetName())
+			}
 		}
 
 		cats := internal.AsSet(crd.Spec.Names.Categories)
@@ -61,4 +93,9 @@ func TestCustomResourceDefinitions(t *testing.T) {
 			t.Errorf("CRD %q must be in category 'crossplane'", crd.GetName())
 		}
 	}
+}
+
+type wantCRD struct {
+	crd        kextv1.CustomResourceDefinition
+	namespaced bool
 }
