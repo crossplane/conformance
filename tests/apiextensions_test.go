@@ -38,7 +38,7 @@ import (
 	"github.com/crossplane/crossplane-runtime/pkg/resource"
 	"github.com/crossplane/crossplane-runtime/pkg/resource/unstructured/composite"
 	extv1 "github.com/crossplane/crossplane/apis/apiextensions/v1"
-	extv2alpha1 "github.com/crossplane/crossplane/apis/apiextensions/v2alpha1"
+	extv2 "github.com/crossplane/crossplane/apis/apiextensions/v2"
 	pkgv1 "github.com/crossplane/crossplane/apis/pkg/v1"
 )
 
@@ -54,10 +54,10 @@ func TestCompositeResourceDefinitionNamespace(t *testing.T) {
 	}
 
 	// create a v2 XRD
-	xrd := &extv2alpha1.CompositeResourceDefinition{
+	xrd := &extv2.CompositeResourceDefinition{
 		ObjectMeta: metav1.ObjectMeta{Name: "namespaceconformances.test.crossplane.io"},
-		Spec: extv2alpha1.CompositeResourceDefinitionSpec{
-			Scope: extv2alpha1.CompositeResourceScopeNamespaced,
+		Spec: extv2.CompositeResourceDefinitionSpec{
+			Scope: extv2.CompositeResourceScopeNamespaced,
 			Group: "test.crossplane.io",
 			Names: kextv1.CustomResourceDefinitionNames{
 				Kind:     "NamespaceConformance",
@@ -65,11 +65,11 @@ func TestCompositeResourceDefinitionNamespace(t *testing.T) {
 				Plural:   "namespaceconformances",
 				Singular: "namespaceconformance",
 			},
-			Versions: []extv2alpha1.CompositeResourceDefinitionVersion{{
+			Versions: []extv2.CompositeResourceDefinitionVersion{{
 				Name:          "v1alpha1",
 				Served:        true,
 				Referenceable: true,
-				Schema: &extv2alpha1.CompositeResourceValidation{
+				Schema: &extv2.CompositeResourceValidation{
 					OpenAPIV3Schema: runtime.RawExtension{Raw: []byte("{}")},
 				},
 			}},
@@ -291,10 +291,10 @@ func TestCompositeResourceDefinitionCluster(t *testing.T) {
 	}
 
 	// create a v2 XRD
-	xrd := &extv2alpha1.CompositeResourceDefinition{
+	xrd := &extv2.CompositeResourceDefinition{
 		ObjectMeta: metav1.ObjectMeta{Name: "clusterconformances.test.crossplane.io"},
-		Spec: extv2alpha1.CompositeResourceDefinitionSpec{
-			Scope: extv2alpha1.CompositeResourceScopeCluster,
+		Spec: extv2.CompositeResourceDefinitionSpec{
+			Scope: extv2.CompositeResourceScopeCluster,
 			Group: "test.crossplane.io",
 			Names: kextv1.CustomResourceDefinitionNames{
 				Kind:     "ClusterConformance",
@@ -302,11 +302,11 @@ func TestCompositeResourceDefinitionCluster(t *testing.T) {
 				Plural:   "clusterconformances",
 				Singular: "clusterconformance",
 			},
-			Versions: []extv2alpha1.CompositeResourceDefinitionVersion{{
+			Versions: []extv2.CompositeResourceDefinitionVersion{{
 				Name:          "v1alpha1",
 				Served:        true,
 				Referenceable: true,
-				Schema: &extv2alpha1.CompositeResourceValidation{
+				Schema: &extv2.CompositeResourceValidation{
 					OpenAPIV3Schema: runtime.RawExtension{Raw: []byte("{}")},
 				},
 			}},
@@ -518,7 +518,7 @@ func TestCompositeResourceDefinitionCluster(t *testing.T) {
 }
 
 // testXRDIsEstablished verifies that the given XRD becomes established.
-func testXRDIsEstablished(ctx context.Context, t *testing.T, kube client.Client, xrd *extv2alpha1.CompositeResourceDefinition) {
+func testXRDIsEstablished(ctx context.Context, t *testing.T, kube client.Client, xrd *extv2.CompositeResourceDefinition) {
 	t.Run("BecomesEstablished", func(t *testing.T) {
 		t.Log("Testing that the XRD's Established status condition becomes 'True'.")
 		if err := wait.PollUntilContextTimeout(ctx, 10*time.Second, 90*time.Second, true, func(ctx context.Context) (done bool, err error) {
@@ -526,12 +526,12 @@ func testXRDIsEstablished(ctx context.Context, t *testing.T, kube client.Client,
 				return false, err
 			}
 
-			if xrd.Status.GetCondition(extv2alpha1.TypeEstablished).Status != corev1.ConditionTrue {
+			if xrd.Status.GetCondition(extv1.TypeEstablished).Status != corev1.ConditionTrue {
 				t.Logf("XRD %q is not yet Established", xrd.GetName())
 				return false, nil
 			}
 
-			if xrd.Status.GetCondition(extv2alpha1.TypeOffered).Status == corev1.ConditionTrue {
+			if xrd.Status.GetCondition(extv1.TypeOffered).Status == corev1.ConditionTrue {
 				t.Logf("XRD %q unexpectedly became Offered", xrd.GetName())
 				return true, fmt.Errorf("XRD %q unexpectedly became Offered", xrd.GetName())
 			}
@@ -545,7 +545,7 @@ func testXRDIsEstablished(ctx context.Context, t *testing.T, kube client.Client,
 }
 
 // testXRDCreatesCRD verifies that a conformant CRD is created from the given XRD
-func testXRDCreatesCRD(ctx context.Context, t *testing.T, kube client.Client, xrd *extv2alpha1.CompositeResourceDefinition, want kextv1.CustomResourceDefinitionSpec) {
+func testXRDCreatesCRD(ctx context.Context, t *testing.T, kube client.Client, xrd *extv2.CompositeResourceDefinition, want kextv1.CustomResourceDefinitionSpec) {
 	if err := wait.PollUntilContextTimeout(ctx, 10*time.Second, 90*time.Second, true, func(ctx context.Context) (done bool, err error) {
 		crd := &kextv1.CustomResourceDefinition{}
 		if err := kube.Get(ctx, types.NamespacedName{Name: xrd.GetName()}, crd); err != nil {
@@ -607,7 +607,7 @@ func TestCompositeResourceNamespace(t *testing.T) {
 	fnc := internal.CreateFunction(ctx, t, kube, "xpkg.crossplane.io/crossplane-contrib/function-dummy:v0.4.1")
 
 	// create namespaced XRD and verify it becomes established/offered
-	scope := extv2alpha1.CompositeResourceScopeNamespaced
+	scope := extv2.CompositeResourceScopeNamespaced
 	xrdNames := kextv1.CustomResourceDefinitionNames{
 		Kind:     "NamespaceConformance",
 		ListKind: "NamespaceConformanceList",
@@ -689,7 +689,7 @@ func TestCompositeResourceCluster(t *testing.T) {
 	fnc := internal.CreateFunction(ctx, t, kube, "xpkg.crossplane.io/crossplane-contrib/function-dummy:v0.4.1")
 
 	// create namespaced XRD and verify it becomes established/offered
-	scope := extv2alpha1.CompositeResourceScopeCluster
+	scope := extv2.CompositeResourceScopeCluster
 	xrdNames := kextv1.CustomResourceDefinitionNames{
 		Kind:     "ClusterConformance",
 		ListKind: "ClusterConformanceList",
@@ -800,19 +800,19 @@ func TestCompositeResourceCluster(t *testing.T) {
 
 // createAndTestXRD creates an XRD to use in testing, ensures that it becomes
 // established, and ensures its clean up.
-func createAndTestXRD(ctx context.Context, t *testing.T, kube client.Client, scope extv2alpha1.CompositeResourceScope, names kextv1.CustomResourceDefinitionNames) *extv2alpha1.CompositeResourceDefinition {
+func createAndTestXRD(ctx context.Context, t *testing.T, kube client.Client, scope extv2.CompositeResourceScope, names kextv1.CustomResourceDefinitionNames) *extv2.CompositeResourceDefinition {
 	t.Helper()
-	xrd := &extv2alpha1.CompositeResourceDefinition{
+	xrd := &extv2.CompositeResourceDefinition{
 		ObjectMeta: metav1.ObjectMeta{Name: fmt.Sprintf("%s.test.crossplane.io", names.Plural)},
-		Spec: extv2alpha1.CompositeResourceDefinitionSpec{
+		Spec: extv2.CompositeResourceDefinitionSpec{
 			Scope: scope,
 			Group: "test.crossplane.io",
 			Names: names,
-			Versions: []extv2alpha1.CompositeResourceDefinitionVersion{{
+			Versions: []extv2.CompositeResourceDefinitionVersion{{
 				Name:          "v1alpha1",
 				Served:        true,
 				Referenceable: true,
-				Schema: &extv2alpha1.CompositeResourceValidation{
+				Schema: &extv2.CompositeResourceValidation{
 					OpenAPIV3Schema: runtime.RawExtension{Raw: []byte(`{
 						"type": "object",
 						"properties": {
@@ -871,12 +871,12 @@ func createAndTestXRD(ctx context.Context, t *testing.T, kube client.Client, sco
 			return false, err
 		}
 
-		if xrd.Status.GetCondition(extv2alpha1.TypeEstablished).Status != corev1.ConditionTrue {
+		if xrd.Status.GetCondition(extv1.TypeEstablished).Status != corev1.ConditionTrue {
 			t.Logf("XRD %q is not yet Established", xrd.GetName())
 			return false, nil
 		}
 
-		if xrd.Status.GetCondition(extv2alpha1.TypeOffered).Status == corev1.ConditionTrue {
+		if xrd.Status.GetCondition(extv1.TypeOffered).Status == corev1.ConditionTrue {
 			t.Logf("XRD %q unexpectedly became Offered", xrd.GetName())
 			return true, fmt.Errorf("XRD %q unexpectedly became Offered", xrd.GetName())
 		}
@@ -936,7 +936,7 @@ func createComposition(ctx context.Context, t *testing.T, kube client.Client, xr
 
 // createAndTestXR creates an XR for testing, verify that it becomes ready, and
 // verifies the results of the composition pipeline.
-func createAndTestXR(ctx context.Context, t *testing.T, kube client.Client, xrd *extv2alpha1.CompositeResourceDefinition) *composite.Unstructured {
+func createAndTestXR(ctx context.Context, t *testing.T, kube client.Client, xrd *extv2.CompositeResourceDefinition) *composite.Unstructured {
 	t.Helper()
 
 	xr := composite.New(composite.WithGroupVersionKind(schema.GroupVersionKind{
@@ -946,7 +946,7 @@ func createAndTestXR(ctx context.Context, t *testing.T, kube client.Client, xrd 
 	}))
 
 	xr.SetName(internal.SuiteName)
-	if xrd.Spec.Scope == extv2alpha1.CompositeResourceScopeNamespaced {
+	if xrd.Spec.Scope == extv2.CompositeResourceScopeNamespaced {
 		xr.SetNamespace(internal.SuiteName)
 	}
 	xr.SetCompositionSelector(&metav1.LabelSelector{MatchLabels: map[string]string{"crossplane.io/test": internal.SuiteName}})

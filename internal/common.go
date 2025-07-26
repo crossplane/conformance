@@ -40,7 +40,7 @@ import (
 	"github.com/crossplane/crossplane-runtime/pkg/resource/unstructured"
 	extv1 "github.com/crossplane/crossplane/apis/apiextensions/v1"
 	extv1beta1 "github.com/crossplane/crossplane/apis/apiextensions/v1beta1"
-	extv2alpha1 "github.com/crossplane/crossplane/apis/apiextensions/v2alpha1"
+	extv2 "github.com/crossplane/crossplane/apis/apiextensions/v2"
 	opsv1alpha1 "github.com/crossplane/crossplane/apis/ops/v1alpha1"
 	pkgv1 "github.com/crossplane/crossplane/apis/pkg/v1"
 	protectionv1beta1 "github.com/crossplane/crossplane/apis/protection/v1beta1"
@@ -88,10 +88,10 @@ func NewClient() (client.Client, error) {
 		return nil, errors.Wrap(err, "cannot add Crossplane apiextensions/v1 to scheme")
 	}
 	if err := extv1beta1.AddToScheme(s); err != nil {
-		return nil, errors.Wrap(err, "cannot add Crossplane apiextensions/extv1beta1 to scheme")
+		return nil, errors.Wrap(err, "cannot add Crossplane apiextensions/v1beta1 to scheme")
 	}
-	if err := extv2alpha1.AddToScheme(s); err != nil {
-		return nil, errors.Wrap(err, "cannot add Crossplane apiextensions/v2alpha1 to scheme")
+	if err := extv2.AddToScheme(s); err != nil {
+		return nil, errors.Wrap(err, "cannot add Crossplane apiextensions/v2 to scheme")
 	}
 	if err := opsv1alpha1.AddToScheme(s); err != nil {
 		return nil, errors.Wrap(err, "cannot add Crossplane ops/v1alpha1 to scheme")
