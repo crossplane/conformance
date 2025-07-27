@@ -301,8 +301,8 @@ func TestWatchOperation(t *testing.T) {
 
 			// Verify the ConfigMap created by the triggered Operation exists and has expected data
 			opCreatedCM := &corev1.ConfigMap{}
-			if err := kube.Get(ctx, types.NamespacedName{Name: "op-created-cm", Namespace: internal.SuiteName}, opCreatedCM); err != nil {
-				t.Logf("ConfigMap 'op-created-cm' created by triggered Operation not yet found: %v", err)
+			if err := kube.Get(ctx, types.NamespacedName{Name: "watch-created-cm", Namespace: internal.SuiteName}, opCreatedCM); err != nil {
+				t.Logf("ConfigMap 'watch-created-cm' created by triggered Operation not yet found: %v", err)
 				return false, nil
 			}
 
@@ -320,7 +320,9 @@ func TestWatchOperation(t *testing.T) {
 	})
 }
 
-// createWatchOperation creates a WatchOperation that watches for ConfigMaps with specific labels
+// createWatchOperation creates a WatchOperation that watches for ConfigMaps
+// with specific labels, and then runs an operation pipeline to create a
+// ConfigMap.
 func createWatchOperation(ctx context.Context, t *testing.T, kube client.Client, fnc *pkgv1.Function) *opsv1alpha1.WatchOperation {
 	t.Helper()
 
@@ -351,13 +353,13 @@ func createWatchOperation(ctx context.Context, t *testing.T, kube client.Client,
 									"response": {
 										"desired": {
 											"resources": {
-												"op-created-cm": {
+												"watch-created-cm": {
 													"resource": {
 														"apiVersion": "v1",
 														"kind": "ConfigMap",
 														"metadata": {
 															"namespace": "%s",
-															"name": "op-created-cm"
+															"name": "watch-created-cm"
 														},
 														"data": {
 															"message": "I was created by an Operation triggered by a WatchOperation!"
@@ -399,4 +401,167 @@ func createWatchOperation(ctx context.Context, t *testing.T, kube client.Client,
 	})
 
 	return watchOp
+}
+
+// TestCronOperation tests the functionality of CronOperation objects. A
+// CronOperation is created then we verify that it successfully
+// scheduled/creates Operations and they successfully complete.
+func TestCronOperation(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	t.Cleanup(cancel)
+
+	kube, err := internal.NewClient()
+	if err != nil {
+		t.Fatalf("Create client: %v", err)
+	}
+
+	// Create a namespace for the cron operation resources
+	internal.CreateNamespace(ctx, t, kube)
+
+	// Create operation-capable function
+	fnc := internal.CreateFunction(ctx, t, kube, "xpkg.crossplane.io/crossplane-contrib/function-dummy:v0.4.1")
+
+	// Create a CronOperation with the quickest possible schedule (every minute)
+	cronOp := createCronOperation(ctx, t, kube, fnc)
+
+	// Wait for CronOperation to become synced and actively scheduling
+	t.Run("CronOperationBecomesActive", func(t *testing.T) {
+		t.Log("Testing that the CronOperation becomes synced and scheduling.")
+		if err := wait.PollUntilContextTimeout(ctx, 10*time.Second, 2*time.Minute, true, func(ctx context.Context) (done bool, err error) {
+			if err := kube.Get(ctx, types.NamespacedName{Name: cronOp.GetName()}, cronOp); err != nil {
+				return false, err
+			}
+
+			if cronOp.GetCondition(xpv1.TypeSynced).Status != corev1.ConditionTrue {
+				t.Logf("CronOperation %q is not yet synced", cronOp.GetName())
+				return false, nil
+			}
+
+			if cronOp.GetCondition(opsv1alpha1.TypeScheduling).Status != corev1.ConditionTrue {
+				t.Logf("CronOperation %q is not yet scheduling", cronOp.GetName())
+				return false, nil
+			}
+
+			t.Logf("CronOperation %q is synced and scheduling", cronOp.GetName())
+			return true, nil
+		}); err != nil {
+			t.Errorf("CronOperation %q never became synced and scheduling: %v", cronOp.GetName(), err)
+		}
+	})
+
+	// Wait for CronOperation to schedule and complete an Operation successfully
+	t.Run("CronSchedulesAndCompletesOperation", func(t *testing.T) {
+		t.Log("Testing that CronOperation schedules and completes Operations successfully.")
+
+		if err := wait.PollUntilContextTimeout(ctx, 10*time.Second, 3*time.Minute, true, func(ctx context.Context) (done bool, err error) {
+			if err := kube.Get(ctx, types.NamespacedName{Name: cronOp.GetName()}, cronOp); err != nil {
+				return false, err
+			}
+
+			// Verify CronOperation has lastScheduleTime set
+			if cronOp.Status.LastScheduleTime == nil {
+				t.Logf("CronOperation %q does not yet have lastScheduleTime set", cronOp.GetName())
+				return false, nil
+			}
+
+			// Verify CronOperation has lastSuccessfulTime set
+			if cronOp.Status.LastSuccessfulTime == nil {
+				t.Logf("CronOperation %q does not yet have lastSuccessfulTime set", cronOp.GetName())
+				return false, nil
+			}
+
+			// Verify the ConfigMap created by the CronOperation's pipeline exists and has expected data
+			cronCreatedCM := &corev1.ConfigMap{}
+			if err := kube.Get(ctx, types.NamespacedName{Name: "cron-created-cm", Namespace: internal.SuiteName}, cronCreatedCM); err != nil {
+				t.Logf("ConfigMap 'cron-created-cm' created by CronOperation pipeline not yet found: %v", err)
+				return false, nil
+			}
+
+			expectedData := "I was created by an Operation triggered by a CronOperation!"
+			if cronCreatedCM.Data["message"] != expectedData {
+				t.Logf("ConfigMap %q does not have expected data. want: %q, got: %q", cronCreatedCM.GetName(), expectedData, cronCreatedCM.Data["message"])
+				return false, nil
+			}
+
+			t.Logf("CronOperation %q successfully scheduled a successfully completed Operation", cronOp.GetName())
+			return true, nil
+		}); err != nil {
+			t.Errorf("CronOperation %q never scheduled and completed successfully: %v", cronOp.GetName(), err)
+		}
+	})
+}
+
+// createCronOperation creates a CronOperation with the quickest possible
+// schedule (every minute) and a pipeline that simply creates a configmap.
+func createCronOperation(ctx context.Context, t *testing.T, kube client.Client, fnc *pkgv1.Function) *opsv1alpha1.CronOperation {
+	t.Helper()
+
+	cronOp := &opsv1alpha1.CronOperation{
+		ObjectMeta: metav1.ObjectMeta{Name: internal.SuiteName + "-cron-operation"},
+		Spec: opsv1alpha1.CronOperationSpec{
+			Schedule: "* * * * *", // Every minute for quick testing
+			OperationTemplate: opsv1alpha1.OperationTemplate{
+				Spec: opsv1alpha1.OperationSpec{
+					Mode: opsv1alpha1.OperationModePipeline,
+					Pipeline: []opsv1alpha1.PipelineStep{
+						{
+							Step: "do-the-op",
+							FunctionRef: opsv1alpha1.FunctionReference{
+								Name: fnc.GetName(),
+							},
+							Input: &runtime.RawExtension{
+								Raw: []byte(fmt.Sprintf(`{
+									"apiVersion": "dummy.fn.crossplane.io/v1beta1",
+									"kind": "Response",
+									"response": {
+										"desired": {
+											"resources": {
+												"cron-created-cm": {
+													"resource": {
+														"apiVersion": "v1",
+														"kind": "ConfigMap",
+														"metadata": {
+															"namespace": "%s",
+															"name": "cron-created-cm"
+														},
+														"data": {
+															"message": "I was created by an Operation triggered by a CronOperation!"
+														}
+													}
+												}
+											}
+										},
+										"results": [
+											{
+												"severity": "SEVERITY_NORMAL",
+												"message": "CronOperation pipeline executed successfully!"
+											}
+										]
+									}
+								}`, internal.SuiteName)),
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	if err := kube.Create(ctx, cronOp); err != nil {
+		t.Fatalf("Create CronOperation %q: %v", cronOp.GetName(), err)
+	}
+	t.Logf("Created CronOperation %q", cronOp.GetName())
+
+	t.Cleanup(func() {
+		t.Logf("Cleaning up CronOperation %q.", cronOp.GetName())
+		if err := kube.Get(ctx, types.NamespacedName{Name: cronOp.GetName()}, cronOp); resource.IgnoreNotFound(err) != nil {
+			t.Fatalf("Get CronOperation %q: %v", cronOp.GetName(), err)
+		}
+		if err := kube.Delete(ctx, cronOp); resource.IgnoreNotFound(err) != nil {
+			t.Fatalf("Delete CronOperation %q: %v", cronOp.GetName(), err)
+		}
+		t.Logf("Deleted CronOperation %q", cronOp.GetName())
+	})
+
+	return cronOp
 }
