@@ -16,6 +16,7 @@ package crossplane
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"testing"
 	"time"
@@ -641,6 +642,16 @@ func TestCompositeResourceNamespace(t *testing.T) {
 								}
 							},
 							"ready": "READY_TRUE"
+						},
+						"secret": {
+							"resource": {
+								"apiVersion": "v1",
+								"kind": "Secret",
+								"data": {
+									"secretData": "` + base64.StdEncoding.EncodeToString([]byte("I'm secret composed resource data!")) + `"
+								}
+							},
+							"ready": "READY_TRUE"
 						}
 					}
 				},
@@ -668,6 +679,12 @@ func TestCompositeResourceNamespace(t *testing.T) {
 			APIVersion:  "v1",
 			Namespace:   internal.SuiteName,
 			FieldValues: map[string]string{"data.coolData": "I'm cool composed resource data!"},
+		},
+		{
+			Kind:        "Secret",
+			APIVersion:  "v1",
+			Namespace:   internal.SuiteName,
+			FieldValues: map[string]string{"data.secretData": base64.StdEncoding.EncodeToString([]byte("I'm secret composed resource data!"))},
 		},
 	})
 }
