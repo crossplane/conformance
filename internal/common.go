@@ -35,15 +35,15 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
-	"github.com/crossplane/crossplane-runtime/pkg/resource"
-	"github.com/crossplane/crossplane-runtime/pkg/resource/unstructured"
-	extv1 "github.com/crossplane/crossplane/apis/apiextensions/v1"
-	extv1beta1 "github.com/crossplane/crossplane/apis/apiextensions/v1beta1"
-	extv2 "github.com/crossplane/crossplane/apis/apiextensions/v2"
-	opsv1alpha1 "github.com/crossplane/crossplane/apis/ops/v1alpha1"
-	pkgv1 "github.com/crossplane/crossplane/apis/pkg/v1"
-	protectionv1beta1 "github.com/crossplane/crossplane/apis/protection/v1beta1"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/fieldpath"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/resource"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/resource/unstructured"
+	extv1 "github.com/crossplane/crossplane/v2/apis/apiextensions/v1"
+	extv1beta1 "github.com/crossplane/crossplane/v2/apis/apiextensions/v1beta1"
+	extv2 "github.com/crossplane/crossplane/v2/apis/apiextensions/v2"
+	opsv1alpha1 "github.com/crossplane/crossplane/v2/apis/ops/v1alpha1"
+	pkgv1 "github.com/crossplane/crossplane/v2/apis/pkg/v1"
+	protectionv1beta1 "github.com/crossplane/crossplane/v2/apis/protection/v1beta1"
 )
 
 // SuiteName of the conformance test suite.

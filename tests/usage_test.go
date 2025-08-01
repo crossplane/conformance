@@ -29,10 +29,10 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	xpv1 "github.com/crossplane/crossplane-runtime/apis/common/v1"
-	"github.com/crossplane/crossplane-runtime/pkg/resource"
-	extv1beta1 "github.com/crossplane/crossplane/apis/apiextensions/v1beta1"
-	protectionv1beta1 "github.com/crossplane/crossplane/apis/protection/v1beta1"
+	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/resource"
+	extv1beta1 "github.com/crossplane/crossplane/v2/apis/apiextensions/v1beta1"
+	protectionv1beta1 "github.com/crossplane/crossplane/v2/apis/protection/v1beta1"
 
 	"github.com/crossplane/conformance/internal"
 )

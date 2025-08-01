@@ -28,8 +28,8 @@ import (
 	"k8s.io/utils/ptr"
 
 	"github.com/crossplane/conformance/internal"
-	"github.com/crossplane/crossplane-runtime/pkg/resource"
-	pkgv1 "github.com/crossplane/crossplane/apis/pkg/v1"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/resource"
+	pkgv1 "github.com/crossplane/crossplane/v2/apis/pkg/v1"
 )
 
 func TestConfiguration(t *testing.T) {
