@@ -20,6 +20,7 @@ import (
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
+	kextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -29,6 +30,7 @@ import (
 
 	"github.com/crossplane/conformance/internal"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/resource"
+	extv1alpha1 "github.com/crossplane/crossplane/v2/apis/apiextensions/v1alpha1"
 	pkgv1 "github.com/crossplane/crossplane/v2/apis/pkg/v1"
 )
 
@@ -120,7 +122,7 @@ func TestProvider(t *testing.T) {
 
 					t.Logf("Revision %q is RevisionHealthy and RuntimeHealthy", rev.GetName())
 
-					// We expect the revision to deploy 2 objects - the CRD of
+					// We expect the revision to deploy 2 objects - the MRD for
 					// the NopResource managed resource and a
 					// ValidatingWebhookConfiguration. // https://github.com/crossplane-contrib/provider-nop/commit/d3c10c1f26bcd78c4ed0d1a5064a27db489c667c
 					if len(rev.Status.ObjectRefs) != 2 {
@@ -142,6 +144,48 @@ func TestProvider(t *testing.T) {
 						}
 						t.Logf("Revision %q created %s %q", rev.GetName(), ref.Kind, ref.Name)
 					}
+
+					// Find the ManagedResourceDefinition from the provider revision object refs
+					var mrdRefName string
+					for _, ref := range rev.Status.ObjectRefs {
+						if ref.Kind == "ManagedResourceDefinition" {
+							mrdRefName = ref.Name
+							break
+						}
+					}
+
+					if mrdRefName == "" {
+						t.Logf("Revision %q has not yet created a ManagedResourceDefinition", rev.GetName())
+						return false, nil
+					}
+
+					mrd := &extv1alpha1.ManagedResourceDefinition{}
+					if err := kube.Get(ctx, types.NamespacedName{Name: mrdRefName}, mrd); err != nil {
+						if kerrors.IsNotFound(err) {
+							t.Logf("ManagedResourceDefinition %q has not yet been created", mrdRefName)
+							return false, nil
+						}
+						return false, err
+					}
+					t.Logf("Found ManagedResourceDefinition %q", mrdRefName)
+
+					// Verify the MRD is Activated
+					if mrd.Spec.State != extv1alpha1.ManagedResourceDefinitionActive {
+						t.Logf("ManagedResourceDefinition %q has spec.state=%q, want Active", mrdRefName, mrd.Spec.State)
+						return false, nil
+					}
+					t.Logf("ManagedResourceDefinition %q has spec.state=Active", mrdRefName)
+
+					// Verify the corresponding CRD for the MRD exists
+					crd := &kextv1.CustomResourceDefinition{ObjectMeta: metav1.ObjectMeta{Name: mrd.Spec.Names.Plural + "." + mrd.Spec.Group}}
+					if err := kube.Get(ctx, types.NamespacedName{Name: crd.GetName()}, crd); err != nil {
+						if kerrors.IsNotFound(err) {
+							t.Logf("CRD %q referenced by ManagedResourceDefinition %q does not exist", crd.GetName(), mrdRefName)
+							return false, nil
+						}
+						return false, err
+					}
+					t.Logf("Found CRD %q referenced by ManagedResourceDefinition %q", crd.GetName(), mrdRefName)
 
 					return true, nil
 				}

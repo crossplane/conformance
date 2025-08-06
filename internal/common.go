@@ -39,6 +39,7 @@ import (
 	"github.com/crossplane/crossplane-runtime/v2/pkg/resource"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/resource/unstructured"
 	extv1 "github.com/crossplane/crossplane/v2/apis/apiextensions/v1"
+	extv1alpha1 "github.com/crossplane/crossplane/v2/apis/apiextensions/v1alpha1"
 	extv1beta1 "github.com/crossplane/crossplane/v2/apis/apiextensions/v1beta1"
 	extv2 "github.com/crossplane/crossplane/v2/apis/apiextensions/v2"
 	opsv1alpha1 "github.com/crossplane/crossplane/v2/apis/ops/v1alpha1"
@@ -89,6 +90,9 @@ func NewClient() (client.Client, error) {
 	}
 	if err := extv1beta1.AddToScheme(s); err != nil {
 		return nil, errors.Wrap(err, "cannot add Crossplane apiextensions/v1beta1 to scheme")
+	}
+	if err := extv1alpha1.AddToScheme(s); err != nil {
+		return nil, errors.Wrap(err, "cannot add Crossplane apiextensions/v1alpha1 to scheme")
 	}
 	if err := extv2.AddToScheme(s); err != nil {
 		return nil, errors.Wrap(err, "cannot add Crossplane apiextensions/v2 to scheme")
