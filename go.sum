@@ -5,10 +5,10 @@ github.com/beorn7/perks v1.0.1/go.mod h1:G2ZrVWU2WbWT9wwq4/hrbKbnv/1ERSJQ0ibhJ6r
 github.com/cespare/xxhash/v2 v2.3.0 h1:UL815xU9SqsFlibzuggzjXhog7bL6oX9BbNZnL2UFvs=
 github.com/cespare/xxhash/v2 v2.3.0/go.mod h1:VGX0DQ3Q6kWi7AoAeZDth3/j3BFtOZR5XLFGgcrjCOs=
 github.com/cpuguy83/go-md2man/v2 v2.0.6/go.mod h1:oOW0eioCTA6cOiMLiUPZOpcVxMig6NIQQ7OS05n1F4g=
-github.com/crossplane/crossplane-runtime/v2 v2.0.0-rc.1 h1:ux9lBmdZbYyQPsnJIDLFlA+8al1NVWKtj4Em0L00Iuo=
-github.com/crossplane/crossplane-runtime/v2 v2.0.0-rc.1/go.mod h1:pkd5UzmE8esaZAApevMutR832GjJ1Qgc5Ngr78ByxrI=
-github.com/crossplane/crossplane/v2 v2.0.0-rc.1 h1:0Y+sTd42OLrvwbwjTR/PYVgCUuaM0UDja8LpDfdoxDc=
-github.com/crossplane/crossplane/v2 v2.0.0-rc.1/go.mod h1:PfaK47N6WQnDNK+uVpoCaifojTOilYPTHZiBssDt0kI=
+github.com/crossplane/crossplane-runtime/v2 v2.0.0 h1:PK2pTKfshdDZ5IfoiMRiCi0PBnIjqbS0KGXEJgRdrb4=
+github.com/crossplane/crossplane-runtime/v2 v2.0.0/go.mod h1:pkd5UzmE8esaZAApevMutR832GjJ1Qgc5Ngr78ByxrI=
+github.com/crossplane/crossplane/v2 v2.0.2 h1:OKA26pnm3/uFHN1zF9d2CGkkvod9H/6PrK4xmL81BgU=
+github.com/crossplane/crossplane/v2 v2.0.2/go.mod h1:s0C2wok2nNwgrAozqBARzn02DfY1o1cNmPtUY7Dd/y8=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc h1:U9qPSI2PIWSS1VwoXQT9A3Wy9MM3WgvqSxFWenqJduM=
