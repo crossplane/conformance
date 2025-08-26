@@ -298,21 +298,16 @@ jobs:
           username: ${{ secrets.DOCKER_USR }}
           password: ${{ secrets.DOCKER_PSW }}
 
+      - name: Setup the Crossplane CLI
+        run: "curl -sL https://raw.githubusercontent.com/crossplane/crossplane/master/install.sh | sh"
+
       - name: Build
-        uses: crossplane-contrib/xpkg-action@master
-        with:
-          channel: stable
-          version: current
-          command: xpkg build -f testdata/configuration -o conformance.xpkg
+        run: ./crossplane xpkg build -f testdata/configuration -o conformance.xpkg
 
       - name: Push
-        uses: crossplane-contrib/xpkg-action@master
         if: env.DOCKER_USR != ''
-        with:
-          command: xpkg push -f testdata/configuration/conformance.xpkg crossplane/conformance-testdata-configuration:${{ steps.tagger.outputs.VERSION_TAG }}
+        run: ./crossplane xpkg push -f conformance.xpkg index.docker.io/crossplane/conformance-testdata-configuration:${{ steps.tagger.outputs.VERSION_TAG }}
 
       - name: Push Latest
-        uses: crossplane-contrib/xpkg-action@master
         if: env.DOCKER_USR != ''
-        with:
-          command: xpkg push -f testdata/configuration/conformance.xpkg crossplane/conformance-testdata-configuration
+        run: ./crossplane xpkg push -f conformance.xpkg index.docker.io/crossplane/conformance-testdata-configuration
