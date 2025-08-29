@@ -32,14 +32,16 @@ import (
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/crossplane/conformance/internal"
 	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/fieldpath"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/resource"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/resource/unstructured/claim"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/resource/unstructured/composite"
+
 	extv1 "github.com/crossplane/crossplane/v2/apis/apiextensions/v1"
 	pkgv1 "github.com/crossplane/crossplane/v2/apis/pkg/v1"
+
+	"github.com/crossplane/conformance/internal"
 )
 
 // TestCompositeResourceDefinitionLegacy verifies that a legacy XRD can be
@@ -721,6 +723,7 @@ func createAndTestXRDLegacy(ctx context.Context, t *testing.T, kube client.Clien
 // composes resources using function-patch-and-transform and ensures its clean
 // up.
 func createCompositionLegacy(ctx context.Context, t *testing.T, kube client.Client, xrdKind string, fnc *pkgv1.Function) {
+	t.Helper()
 	comp := &extv1.Composition{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: internal.SuiteName,

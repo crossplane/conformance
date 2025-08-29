@@ -33,14 +33,16 @@ import (
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/crossplane/conformance/internal"
 	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/fieldpath"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/resource"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/resource/unstructured/composite"
+
 	extv1 "github.com/crossplane/crossplane/v2/apis/apiextensions/v1"
 	extv2 "github.com/crossplane/crossplane/v2/apis/apiextensions/v2"
 	pkgv1 "github.com/crossplane/crossplane/v2/apis/pkg/v1"
+
+	"github.com/crossplane/conformance/internal"
 )
 
 // TestCompositeResourceDefinitionNamespace tests the creation of a namespaced XRD and
@@ -520,6 +522,7 @@ func TestCompositeResourceDefinitionCluster(t *testing.T) {
 
 // testXRDIsEstablished verifies that the given XRD becomes established.
 func testXRDIsEstablished(ctx context.Context, t *testing.T, kube client.Client, xrd *extv2.CompositeResourceDefinition) {
+	t.Helper()
 	t.Run("BecomesEstablished", func(t *testing.T) {
 		t.Log("Testing that the XRD's Established status condition becomes 'True'.")
 		if err := wait.PollUntilContextTimeout(ctx, 10*time.Second, 90*time.Second, true, func(ctx context.Context) (done bool, err error) {
@@ -545,8 +548,9 @@ func testXRDIsEstablished(ctx context.Context, t *testing.T, kube client.Client,
 	})
 }
 
-// testXRDCreatesCRD verifies that a conformant CRD is created from the given XRD
+// testXRDCreatesCRD verifies that a conformant CRD is created from the given XRD.
 func testXRDCreatesCRD(ctx context.Context, t *testing.T, kube client.Client, xrd *extv2.CompositeResourceDefinition, want kextv1.CustomResourceDefinitionSpec) {
+	t.Helper()
 	if err := wait.PollUntilContextTimeout(ctx, 10*time.Second, 90*time.Second, true, func(ctx context.Context) (done bool, err error) {
 		crd := &kextv1.CustomResourceDefinition{}
 		if err := kube.Get(ctx, types.NamespacedName{Name: xrd.GetName()}, crd); err != nil {
@@ -910,6 +914,7 @@ func createAndTestXRD(ctx context.Context, t *testing.T, kube client.Client, sco
 // createComposition creates a simple function pipeline based composition that
 // composes resources using the given input and ensures its clean up.
 func createComposition(ctx context.Context, t *testing.T, kube client.Client, xrdKind string, fnc *pkgv1.Function, input *runtime.RawExtension) {
+	t.Helper()
 	comp := &extv1.Composition{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: internal.SuiteName,
@@ -1031,7 +1036,7 @@ func createAndTestXR(ctx context.Context, t *testing.T, kube client.Client, xrd 
 	return xr
 }
 
-// testXRResourceRefs verifies that the given XR has the given set of resource references
+// testXRResourceRefs verifies that the given XR has the given set of resource references.
 func testXRResourceRefs(ctx context.Context, t *testing.T, kube client.Client, xr *composite.Unstructured, wantRefs []internal.ResourceRef) {
 	t.Helper()
 

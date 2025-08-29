@@ -31,13 +31,14 @@ import (
 
 	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/resource"
+
 	extv1beta1 "github.com/crossplane/crossplane/v2/apis/apiextensions/v1beta1"
 	protectionv1beta1 "github.com/crossplane/crossplane/v2/apis/protection/v1beta1"
 
 	"github.com/crossplane/conformance/internal"
 )
 
-// usageTestConfig holds the configuration for usage protection tests
+// usageTestConfig holds the configuration for usage protection tests.
 type usageTestConfig struct {
 	ctx       context.Context
 	t         *testing.T
@@ -342,7 +343,8 @@ func TestUsageLegacy(t *testing.T) {
 		},
 	}
 
-	// Legacy Usage object that tracks the usage of these two resources
+	// Legacy Usage object that tracks the usage of these two resources.
+	//nolint:staticcheck // extv1beta1.Usage is intentionally tested for legacy compatibility.
 	legacyUsage := &extv1beta1.Usage{
 		ObjectMeta: metav1.ObjectMeta{Name: "legacy-usage"},
 		Spec: extv1beta1.UsageSpec{
@@ -385,7 +387,7 @@ func TestUsageLegacy(t *testing.T) {
 }
 
 // createUsageResources creates the given using, used, and usage resources and
-// schedules their clean up when the test is complete
+// schedules their clean up when the test is complete.
 func createUsageResources(config *usageTestConfig) {
 	ctx := config.ctx
 	t := config.t
@@ -444,13 +446,13 @@ func createUsageResources(config *usageTestConfig) {
 	t.Logf("Created %s %q", usageKind, usage.GetName())
 }
 
-// testUsageBecomesReady tests that a usage object becomes ready
+// testUsageBecomesReady tests that a usage object becomes ready.
 func testUsageBecomesReady(config *usageTestConfig) {
 	config.t.Run(fmt.Sprintf("%sBecomesReadyAvailable", config.usageKind), func(t *testing.T) {
 		t.Logf("Testing that the %s %q becomes ready and available.", config.usageKind, config.usage.GetName())
 
 		if err := wait.PollUntilContextTimeout(config.ctx, 5*time.Second, 1*time.Minute, true, func(ctx context.Context) (done bool, err error) {
-			if err := config.kube.Get(config.ctx, client.ObjectKeyFromObject(config.usage), config.usage); err != nil {
+			if err := config.kube.Get(ctx, client.ObjectKeyFromObject(config.usage), config.usage); err != nil {
 				config.t.Logf("Unexpected error getting %s %q: %v", config.usageKind, config.usage.GetName(), err)
 				return false, nil
 			}
@@ -473,7 +475,7 @@ func testUsageBecomesReady(config *usageTestConfig) {
 	})
 }
 
-// testDeletionBlocked tests that deletion is blocked while used object still in use
+// testDeletionBlocked tests that deletion is blocked while used object still in use.
 func testDeletionBlocked(config *usageTestConfig) {
 	config.t.Run("DeletionBlockedWhileInUse", func(t *testing.T) {
 		t.Logf("Testing that deletion of the used %s is blocked while the using %s exists.", config.usedKind, config.usingKind)
@@ -495,7 +497,7 @@ func testDeletionBlocked(config *usageTestConfig) {
 }
 
 // testDeletionAllowedAfterUsingDeleted tests that deletion of the used object
-// is allowed after using resource is deleted
+// is allowed after using resource is deleted.
 func testDeletionAllowedAfterUsingDeleted(config *usageTestConfig) {
 	config.t.Run("testDeletionAllowedAfterUsingDeleted", func(t *testing.T) {
 		t.Log("Testing that deletion of the used object is allowed after using resource is deleted.")
@@ -506,7 +508,7 @@ func testDeletionAllowedAfterUsingDeleted(config *usageTestConfig) {
 		t.Logf("Deleted using %s %q", config.usingKind, config.using.GetName())
 
 		if err := wait.PollUntilContextTimeout(config.ctx, 5*time.Second, 1*time.Minute, true, func(ctx context.Context) (done bool, err error) {
-			if err := config.kube.Delete(config.ctx, config.used); err != nil {
+			if err := config.kube.Delete(ctx, config.used); err != nil {
 				t.Logf("Used %s %q deletion still blocked, retrying: %v", config.usedKind, config.used.GetName(), err)
 				return false, nil
 			}
@@ -517,7 +519,7 @@ func testDeletionAllowedAfterUsingDeleted(config *usageTestConfig) {
 		}
 
 		if err := wait.PollUntilContextTimeout(config.ctx, 5*time.Second, 1*time.Minute, true, func(ctx context.Context) (done bool, err error) {
-			if err := config.kube.Get(config.ctx, client.ObjectKeyFromObject(config.used), config.used); err != nil {
+			if err := config.kube.Get(ctx, client.ObjectKeyFromObject(config.used), config.used); err != nil {
 				if kerrors.IsNotFound(err) {
 					t.Logf("Confirmed used %s %q no longer exists", config.usedKind, config.used.GetName())
 					return true, nil

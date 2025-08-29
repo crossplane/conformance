@@ -28,10 +28,12 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/utils/ptr"
 
-	"github.com/crossplane/conformance/internal"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/resource"
+
 	extv1alpha1 "github.com/crossplane/crossplane/v2/apis/apiextensions/v1alpha1"
 	pkgv1 "github.com/crossplane/crossplane/v2/apis/pkg/v1"
+
+	"github.com/crossplane/conformance/internal"
 )
 
 func TestProvider(t *testing.T) {

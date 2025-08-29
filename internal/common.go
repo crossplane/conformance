@@ -42,6 +42,7 @@ import (
 	"github.com/crossplane/crossplane-runtime/v2/pkg/fieldpath"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/resource"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/resource/unstructured"
+
 	extv1 "github.com/crossplane/crossplane/v2/apis/apiextensions/v1"
 	extv1alpha1 "github.com/crossplane/crossplane/v2/apis/apiextensions/v1alpha1"
 	extv1beta1 "github.com/crossplane/crossplane/v2/apis/apiextensions/v1beta1"
@@ -57,6 +58,7 @@ const SuiteName = "crossplane-conformance"
 // Version of the conformance plugin.
 var version = "unknown"
 
+//nolint:gochecknoinits // Set controller-runtime logger once at startup.
 func init() {
 	// ensure a logger is set for controller-runtime
 	log.SetLogger(klog.NewKlogr())
@@ -250,6 +252,7 @@ func CreateNamespace(ctx context.Context, t *testing.T, kube client.Client) {
 		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 60*time.Second)
 		defer cleanupCancel()
 
+		//nolint:contextcheck // We don't want to inherit context here because we want this clean up to run even if the main context has already timed out
 		if err := waitForNamespaceToNotExist(cleanupCtx, kube, ns.GetName()); err != nil {
 			// Waiting for the namespace to not exist failed. Don't fail the test, just log the warning.
 			t.Logf("Warning: namespace %q cleanup did not complete within timeout: %v", ns.GetName(), err)
@@ -259,7 +262,7 @@ func CreateNamespace(ctx context.Context, t *testing.T, kube client.Client) {
 	})
 }
 
-// waitForNamespaceToNotExist waits for a namespace to be completely deleted
+// waitForNamespaceToNotExist waits for a namespace to be completely deleted.
 func waitForNamespaceToNotExist(ctx context.Context, kube client.Client, name string) error {
 	return wait.PollUntilContextTimeout(ctx, 3*time.Second, 60*time.Second, true,
 		func(ctx context.Context) (bool, error) {
@@ -281,6 +284,7 @@ func waitForNamespaceToNotExist(ctx context.Context, kube client.Client, name st
 // ensureNamespaceDoesNotExist ensures a namespace does not exist. If it does,
 // it will delete it and wait for completion of the deletion.
 func ensureNamespaceDoesNotExist(ctx context.Context, t *testing.T, kube client.Client, name string) error {
+	t.Helper()
 	t.Logf("Ensuring namespace %q does not exist", name)
 
 	ns := &corev1.Namespace{}
@@ -337,6 +341,7 @@ func CreateProvider(ctx context.Context, t *testing.T, kube client.Client, pkg s
 // CreateFunction creates a function from the given package that will be used
 // during testing and ensures its clean up.
 func CreateFunction(ctx context.Context, t *testing.T, kube client.Client, pkg string) *pkgv1.Function {
+	t.Helper()
 	fnc := &pkgv1.Function{
 		ObjectMeta: metav1.ObjectMeta{Name: SuiteName + "-function"},
 		Spec: pkgv1.FunctionSpec{
@@ -367,7 +372,7 @@ func CreateFunction(ctx context.Context, t *testing.T, kube client.Client, pkg s
 }
 
 // ResourceRef represents an expected resource reference along with the
-// set of fields/values to verify
+// set of fields/values to verify.
 type ResourceRef struct {
 	Kind        string
 	APIVersion  string
@@ -377,7 +382,7 @@ type ResourceRef struct {
 }
 
 // TestResourceRefs verifies that actual resource references match expected
-// ones, including validating their field values
+// ones, including validating their field values.
 func TestResourceRefs(ctx context.Context, t *testing.T, kube client.Client, actualRefs []ResourceRef, wantRefs []ResourceRef) error {
 	t.Helper()
 
@@ -412,7 +417,7 @@ func TestResourceRefs(ctx context.Context, t *testing.T, kube client.Client, act
 			if kerrors.IsNotFound(err) {
 				return fmt.Errorf("not yet created/applied %s %q", actualRef.Kind, actualRef.Name)
 			}
-			return fmt.Errorf("failed to get %s %q: %v", actualRef.Kind, actualRef.Name, err)
+			return fmt.Errorf("failed to get %s %q: %w", actualRef.Kind, actualRef.Name, err)
 		}
 
 		// Verify the actual resource's fields match the expected values
@@ -420,7 +425,7 @@ func TestResourceRefs(ctx context.Context, t *testing.T, kube client.Client, act
 		for fieldPath, wantValue := range wantRef.FieldValues {
 			actualValue, err := paved.GetString(fieldPath)
 			if err != nil {
-				return fmt.Errorf("resource ref %q failed to get field %q: %v", actualRef.Name, fieldPath, err)
+				return fmt.Errorf("resource ref %q failed to get field %q: %w", actualRef.Name, fieldPath, err)
 			}
 			if actualValue != wantValue {
 				return fmt.Errorf("resource ref %q field %q: want %q, got %q", actualRef.Name, fieldPath, wantValue, actualValue)

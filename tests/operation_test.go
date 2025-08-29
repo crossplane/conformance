@@ -28,11 +28,13 @@ import (
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/crossplane/conformance/internal"
 	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/resource"
+
 	opsv1alpha1 "github.com/crossplane/crossplane/v2/apis/ops/v1alpha1"
 	pkgv1 "github.com/crossplane/crossplane/v2/apis/pkg/v1"
+
+	"github.com/crossplane/conformance/internal"
 )
 
 func TestOperation(t *testing.T) {
@@ -128,7 +130,7 @@ func TestOperation(t *testing.T) {
 	})
 }
 
-// createOperation creates an Operation with the given function reference
+// createOperation creates an Operation with the given function reference.
 func createOperation(ctx context.Context, t *testing.T, kube client.Client, fnc *pkgv1.Function) *opsv1alpha1.Operation {
 	t.Helper()
 
