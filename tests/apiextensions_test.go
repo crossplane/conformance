@@ -17,6 +17,7 @@ package crossplane
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -280,6 +281,9 @@ func TestCompositeResourceDefinitionNamespace(t *testing.T) {
 		// verify that a conformant CRD was created for this XRD
 		testXRDCreatesCRD(ctx, t, kube, xrd, want)
 	})
+
+	// ensure a claim CRD is not created for the XRD
+	testXRDDoesNotCreateClaimCRD(ctx, t, kube, xrd)
 }
 
 // TestCompositeResourceDefinitionCluster tests the creation of a cluster scoped
@@ -518,6 +522,9 @@ func TestCompositeResourceDefinitionCluster(t *testing.T) {
 		// verify that a conformant CRD was created for this XRD
 		testXRDCreatesCRD(ctx, t, kube, xrd, want)
 	})
+
+	// ensure a claim CRD is not created for the XRD
+	testXRDDoesNotCreateClaimCRD(ctx, t, kube, xrd)
 }
 
 // testXRDIsEstablished verifies that the given XRD becomes established.
@@ -593,6 +600,45 @@ func testXRDCreatesCRD(ctx context.Context, t *testing.T, kube client.Client, xr
 	if crdCount != 1 {
 		t.Errorf("XRD %q created %d CRDs, but should have only created 1", xrd.GetName(), crdCount)
 	}
+}
+
+// testXRDDoesNotCreateClaimCRD verifies that no claim CRD is created for an XRD.
+func testXRDDoesNotCreateClaimCRD(ctx context.Context, t *testing.T, kube client.Client, xrd *extv2.CompositeResourceDefinition) {
+	t.Helper()
+	t.Run("NoCRDIsCreatedForXRC", func(t *testing.T) {
+		t.Log("Testing that the XRD does not create a CRD for a claim.")
+
+		// Wait a minimum period to ensure a claim CRD does not appear.
+		if err := wait.PollUntilContextTimeout(ctx, 5*time.Second, 30*time.Second, true, func(ctx context.Context) (done bool, err error) {
+			crdList := &kextv1.CustomResourceDefinitionList{}
+			if err := kube.List(ctx, crdList); err != nil {
+				//nolint:nilerr // ignore any list errors that could be transient - go all the way until the end of the polling period
+				return false, nil
+			}
+
+			for _, crd := range crdList.Items {
+				if crd.Spec.Group != xrd.Spec.Group {
+					continue
+				}
+				for _, c := range crd.Spec.Names.Categories {
+					if c == "claim" {
+						// We found a claim CRD in the XRDs group, fail the test
+						return true, fmt.Errorf("XRD %q unexpectedly created a claim CRD %q", xrd.GetName(), crd.GetName())
+					}
+				}
+			}
+
+			// Keep polling until the timeout to ensure there is no claim CRD the entire time
+			return false, nil
+		}); err != nil {
+			if errors.Is(err, context.DeadlineExceeded) {
+				// A timeout (context.DeadlineExceeded) means we observed no claim CRD for the full window - this is successful
+				t.Logf("XRD %q successfully did not create a CRD for a claim.", xrd.GetName())
+			} else {
+				t.Errorf("Error encountered while testing that XRD %q does not create a CRD for a claim: %v", xrd.GetName(), err)
+			}
+		}
+	})
 }
 
 // TestCompositeResourceNamespace tests the creation of a namespaced XRD and

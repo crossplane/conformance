@@ -576,7 +576,7 @@ func TestCompositeResourceDefinitionLegacy(t *testing.T) {
 	})
 }
 
-// TestCompositeResourcePipelineModLegacy tests the creation of a legacy XRD and
+// TestCompositeResourceLegacy tests the creation of a legacy XRD and
 // Composition that uses a function pipeline to compose resources. The function
 // pipeline uses function-patch-and-transform and this test verifies that some
 // simple logic run by the function pipeline was successful.
