@@ -15,3 +15,7 @@ cover.out
 # ignore asdf local versions
 /.tool-versions
 
+*.xpkg
+
+/.claude
+CLAUDE.md

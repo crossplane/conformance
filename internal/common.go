@@ -1,4 +1,4 @@
-// Copyright 2021 The Crossplane Authors
+// Copyright 2025 The Crossplane Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,43 +12,76 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package internal contains internal helper functions used by the conformance tests.
 package internal
 
 import (
+	"context"
+	"fmt"
+	"testing"
+	"time"
+
 	"github.com/google/go-cmp/cmp"
 	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	kextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	kunstructured "k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/klog/v2"
+	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	"github.com/crossplane/crossplane-runtime/pkg/resource/unstructured"
-	extv1 "github.com/crossplane/crossplane/apis/apiextensions/v1"
-	pkgv1 "github.com/crossplane/crossplane/apis/pkg/v1"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/fieldpath"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/resource"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/resource/unstructured"
+
+	extv1 "github.com/crossplane/crossplane/v2/apis/apiextensions/v1"
+	extv1alpha1 "github.com/crossplane/crossplane/v2/apis/apiextensions/v1alpha1"
+	extv1beta1 "github.com/crossplane/crossplane/v2/apis/apiextensions/v1beta1"
+	extv2 "github.com/crossplane/crossplane/v2/apis/apiextensions/v2"
+	opsv1alpha1 "github.com/crossplane/crossplane/v2/apis/ops/v1alpha1"
+	pkgv1 "github.com/crossplane/crossplane/v2/apis/pkg/v1"
+	protectionv1beta1 "github.com/crossplane/crossplane/v2/apis/protection/v1beta1"
 )
 
 // SuiteName of the conformance test suite.
 const SuiteName = "crossplane-conformance"
 
 // Version of the conformance plugin.
-var Version = "unknown"
+var version = "unknown"
+
+//nolint:gochecknoinits // Set controller-runtime logger once at startup.
+func init() {
+	// ensure a logger is set for controller-runtime
+	log.SetLogger(klog.NewKlogr())
+}
+
+// Version returns the version of the conformance plugin.
+func Version() string {
+	return version
+}
 
 // NewClient returns a Kubernetes API client suitable for use with conformance
 // tests. It uses controller-runtime's config loading precedence to figure out
 // how to connect to an API server, i.e. it will try in order:
 //
-// 1. The KUBECONFIG environment variable if it is set to a kubeconfig file path
-// 2. In-cluster config if running in cluster
-// 3. $HOME/.kube/config if it exists
+// 1. The KUBECONFIG environment variable if it is set to a kubeconfig file path.
+// 2. In-cluster config if running in cluster.
+// 3. $HOME/.kube/config if it exists.
 func NewClient() (client.Client, error) {
 	cfg, err := ctrl.GetConfig()
 	if err != nil {
 		return nil, errors.Wrap(err, "cannot create Kubernetes API REST config")
 	}
-	cfg.UserAgent = SuiteName + "/" + Version
+	cfg.UserAgent = SuiteName + "/" + Version()
 	cfg.QPS = 20
 	cfg.Burst = 100
 
@@ -57,18 +90,29 @@ func NewClient() (client.Client, error) {
 	if err := corev1.AddToScheme(s); err != nil {
 		return nil, errors.Wrap(err, "cannot add Kubernetes core/v1 to scheme")
 	}
-
 	if err := kextv1.AddToScheme(s); err != nil {
 		return nil, errors.Wrap(err, "cannot add Kubernetes apiextensions/v1 to scheme")
 	}
-
 	if err := pkgv1.AddToScheme(s); err != nil {
 		return nil, errors.Wrap(err, "cannot add Crossplane pkg/v1 to scheme")
 	}
-
 	if err := extv1.AddToScheme(s); err != nil {
 		return nil, errors.Wrap(err, "cannot add Crossplane apiextensions/v1 to scheme")
-
+	}
+	if err := extv1beta1.AddToScheme(s); err != nil {
+		return nil, errors.Wrap(err, "cannot add Crossplane apiextensions/v1beta1 to scheme")
+	}
+	if err := extv1alpha1.AddToScheme(s); err != nil {
+		return nil, errors.Wrap(err, "cannot add Crossplane apiextensions/v1alpha1 to scheme")
+	}
+	if err := extv2.AddToScheme(s); err != nil {
+		return nil, errors.Wrap(err, "cannot add Crossplane apiextensions/v2 to scheme")
+	}
+	if err := opsv1alpha1.AddToScheme(s); err != nil {
+		return nil, errors.Wrap(err, "cannot add Crossplane ops/v1alpha1 to scheme")
+	}
+	if err := protectionv1beta1.AddToScheme(s); err != nil {
+		return nil, errors.Wrap(err, "cannot add Crossplane protection/v1beta1 to scheme")
 	}
 	if err := appsv1.AddToScheme(s); err != nil {
 		return nil, errors.Wrap(err, "cannot add Kubernetes apps/v1 to scheme")
@@ -123,7 +167,7 @@ func IgnoreFieldsOfMapKey(key string, names ...string) cmp.Option {
 
 		for _, n := range names {
 			if _, ok := m.Type().FieldByName(n); !ok {
-				panic(errors.Errorf("%s field %q does not exist\n", m.Type(), n))
+				panic(errors.Errorf("%s field %q does not exist", m.Type(), n))
 			}
 			if f.Name() == n {
 				return true
@@ -147,7 +191,7 @@ func OnlySubproperties(key string, keys ...string) cmp.Option {
 		}
 
 		if _, ok := m.Type().FieldByName(props); !ok {
-			panic(errors.Errorf("%s field %q does not exist\n", m.Type(), props))
+			panic(errors.Errorf("%s field %q does not exist", m.Type(), props))
 		}
 
 		f, ok := p.Index(-2).(cmp.StructField)
@@ -168,4 +212,226 @@ func OnlySubproperties(key string, keys ...string) cmp.Option {
 
 		return true
 	}, cmp.Ignore())
+}
+
+// CreateNamespace creates a test namespace to use during testing and ensures
+// its clean up. Enhanced version that waits for any existing namespace to be
+// fully deleted before creating a new one.
+func CreateNamespace(ctx context.Context, t *testing.T, kube client.Client) {
+	t.Helper()
+
+	// First, ensure any existing namespace is fully deleted
+	name := SuiteName
+	if err := ensureNamespaceDoesNotExist(ctx, t, kube, name); err != nil {
+		t.Fatalf("Failed to ensure namespace %q does not exist: %v", name, err)
+	}
+
+	// Now create the namespace
+	ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: name}}
+	if err := kube.Create(ctx, ns); err != nil {
+		t.Fatalf("Create namespace %q: %v", ns.GetName(), err)
+	}
+	t.Logf("Created namespace %q", ns.GetName())
+
+	// Cleanup logic for the namespace that will wait for deletion completion
+	t.Cleanup(func() {
+		t.Logf("Cleaning up namespace %q", ns.GetName())
+
+		if err := kube.Get(ctx, types.NamespacedName{Name: ns.GetName()}, ns); resource.IgnoreNotFound(err) != nil {
+			t.Logf("Warning: failed to get namespace %q during cleanup: %v", ns.GetName(), err)
+			return
+		}
+
+		// Delete the namespace
+		if err := kube.Delete(ctx, ns); resource.IgnoreNotFound(err) != nil {
+			t.Logf("Warning: failed to delete namespace %q: %v", ns.GetName(), err)
+			return
+		}
+
+		// Wait for deletion to complete (with timeout)
+		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 60*time.Second)
+		defer cleanupCancel()
+
+		//nolint:contextcheck // We don't want to inherit context here because we want this clean up to run even if the main context has already timed out
+		if err := waitForNamespaceToNotExist(cleanupCtx, kube, ns.GetName()); err != nil {
+			// Waiting for the namespace to not exist failed. Don't fail the test, just log the warning.
+			t.Logf("Warning: namespace %q cleanup did not complete within timeout: %v", ns.GetName(), err)
+		} else {
+			t.Logf("Successfully cleaned up namespace %q", ns.GetName())
+		}
+	})
+}
+
+// waitForNamespaceToNotExist waits for a namespace to be completely deleted.
+func waitForNamespaceToNotExist(ctx context.Context, kube client.Client, name string) error {
+	return wait.PollUntilContextTimeout(ctx, 3*time.Second, 60*time.Second, true,
+		func(ctx context.Context) (bool, error) {
+			ns := &corev1.Namespace{}
+			err := kube.Get(ctx, types.NamespacedName{Name: name}, ns)
+			if kerrors.IsNotFound(err) {
+				// Namespace is fully deleted
+				return true, nil
+			}
+			if err != nil {
+				// Unexpected error
+				return false, err
+			}
+			// Namespace still exists (possibly in Terminating state)
+			return false, nil
+		})
+}
+
+// ensureNamespaceDoesNotExist ensures a namespace does not exist. If it does,
+// it will delete it and wait for completion of the deletion.
+func ensureNamespaceDoesNotExist(ctx context.Context, t *testing.T, kube client.Client, name string) error {
+	t.Helper()
+	t.Logf("Ensuring namespace %q does not exist", name)
+
+	ns := &corev1.Namespace{}
+	err := kube.Get(ctx, types.NamespacedName{Name: name}, ns)
+	if kerrors.IsNotFound(err) {
+		// Already deleted
+		return nil
+	}
+	if err != nil {
+		return errors.Wrapf(err, "failed to get namespace %q", name)
+	}
+
+	// The namespace does exist, delete it now
+	t.Logf("Namespace %q exists, deleting it now", name)
+	if err := kube.Delete(ctx, ns); resource.IgnoreNotFound(err) != nil {
+		return errors.Wrapf(err, "failed to delete namespace %q", name)
+	}
+
+	// Wait for deletion to complete
+	return waitForNamespaceToNotExist(ctx, kube, name)
+}
+
+// CreateProvider creates a provider from the given package that will be used during
+// testing and ensures its clean up.
+func CreateProvider(ctx context.Context, t *testing.T, kube client.Client, pkg string) {
+	t.Helper()
+	prv := &pkgv1.Provider{
+		ObjectMeta: metav1.ObjectMeta{Name: SuiteName},
+		Spec: pkgv1.ProviderSpec{
+			PackageSpec: pkgv1.PackageSpec{
+				Package:                     pkg,
+				IgnoreCrossplaneConstraints: ptr.To(true),
+			},
+		},
+	}
+
+	if err := kube.Create(ctx, prv); err != nil {
+		t.Fatalf("Create provider %q: %v", prv.GetName(), err)
+	}
+	t.Logf("Created provider %q", prv.GetName())
+
+	t.Cleanup(func() {
+		t.Logf("Cleaning up provider %q.", prv.GetName())
+		if err := kube.Get(ctx, types.NamespacedName{Name: prv.GetName()}, prv); resource.IgnoreNotFound(err) != nil {
+			t.Fatalf("Get provider %q: %v", prv.GetName(), err)
+		}
+		if err := kube.Delete(ctx, prv); resource.IgnoreNotFound(err) != nil {
+			t.Fatalf("Delete provider %q: %v", prv.GetName(), err)
+		}
+		t.Logf("Deleted provider %q", prv.GetName())
+	})
+}
+
+// CreateFunction creates a function from the given package that will be used
+// during testing and ensures its clean up.
+func CreateFunction(ctx context.Context, t *testing.T, kube client.Client, pkg string) *pkgv1.Function {
+	t.Helper()
+	fnc := &pkgv1.Function{
+		ObjectMeta: metav1.ObjectMeta{Name: SuiteName + "-function"},
+		Spec: pkgv1.FunctionSpec{
+			PackageSpec: pkgv1.PackageSpec{
+				Package:                     pkg,
+				IgnoreCrossplaneConstraints: ptr.To(true),
+			},
+		},
+	}
+
+	if err := kube.Create(ctx, fnc); err != nil {
+		t.Fatalf("Create function %q: %v", fnc.GetName(), err)
+	}
+	t.Logf("Created function %q", fnc.GetName())
+
+	t.Cleanup(func() {
+		t.Logf("Cleaning up function %q.", fnc.GetName())
+		if err := kube.Get(ctx, types.NamespacedName{Name: fnc.GetName()}, fnc); resource.IgnoreNotFound(err) != nil {
+			t.Fatalf("Get function %q: %v", fnc.GetName(), err)
+		}
+		if err := kube.Delete(ctx, fnc); resource.IgnoreNotFound(err) != nil {
+			t.Fatalf("Delete function %q: %v", fnc.GetName(), err)
+		}
+		t.Logf("Deleted function %q", fnc.GetName())
+	})
+
+	return fnc
+}
+
+// ResourceRef represents an expected resource reference along with the
+// set of fields/values to verify.
+type ResourceRef struct {
+	Kind        string
+	APIVersion  string
+	Namespace   string
+	Name        string
+	FieldValues map[string]string // Map of field paths to expected values
+}
+
+// TestResourceRefs verifies that actual resource references match expected
+// ones, including validating their field values.
+func TestResourceRefs(ctx context.Context, t *testing.T, kube client.Client, actualRefs []ResourceRef, wantRefs []ResourceRef) error {
+	t.Helper()
+
+	// verify we have the expected number of resource refs
+	if len(actualRefs) != len(wantRefs) {
+		return fmt.Errorf("want %d resource refs, got %d", len(wantRefs), len(actualRefs))
+	}
+
+	// Verify each expected resource exists and their objects have the expected values
+	for _, wantRef := range wantRefs {
+		var actualRef *ResourceRef
+
+		// look for this wanted ref in the actual refs (note we just
+		// match on kind, so this assumes only 1 resource ref of each
+		// kind)
+		for i := range actualRefs {
+			if wantRef.Kind == actualRefs[i].Kind {
+				actualRef = &actualRefs[i]
+				break
+			}
+		}
+
+		if actualRef == nil {
+			return fmt.Errorf("missing wanted resource ref with kind %q", wantRef.Kind)
+		}
+
+		// retrieve the actual resource using the reference we found
+		u := &kunstructured.Unstructured{}
+		u.SetAPIVersion(actualRef.APIVersion)
+		u.SetKind(actualRef.Kind)
+		if err := kube.Get(ctx, types.NamespacedName{Name: actualRef.Name, Namespace: actualRef.Namespace}, u); err != nil {
+			if kerrors.IsNotFound(err) {
+				return fmt.Errorf("not yet created/applied %s %q", actualRef.Kind, actualRef.Name)
+			}
+			return fmt.Errorf("failed to get %s %q: %w", actualRef.Kind, actualRef.Name, err)
+		}
+
+		// Verify the actual resource's fields match the expected values
+		paved := fieldpath.Pave(u.Object)
+		for fieldPath, wantValue := range wantRef.FieldValues {
+			actualValue, err := paved.GetString(fieldPath)
+			if err != nil {
+				return fmt.Errorf("resource ref %q failed to get field %q: %w", actualRef.Name, fieldPath, err)
+			}
+			if actualValue != wantValue {
+				return fmt.Errorf("resource ref %q field %q: want %q, got %q", actualRef.Name, fieldPath, wantValue, actualValue)
+			}
+		}
+	}
+
+	return nil
 }

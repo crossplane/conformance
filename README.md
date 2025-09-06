@@ -11,17 +11,7 @@ CROSSPLANE_VERSION=1.2
 # must be pre-installed on the cluster where Sonobuoy will run.
 sonobuoy run --wait --plugin https://raw.githubusercontent.com/crossplane/conformance/release-${CROSSPLANE_VERSION}/plugin-crossplane.yaml
 sonobuoy results $(sonobuoy retrieve) -m dump
-
-# To determine whether a Crossplane provider is conformant. The provider must be
-# pre-installed on the cluster where Sonobuoy will run, and must be the only
-# provider installed on the cluster.
-sonobuoy run --wait --plugin https://raw.githubusercontent.com/crossplane/conformance/release-${CROSSPLANE_VERSION}/plugin-provider.yaml
-sonobuoy results $(sonobuoy retrieve) -m dump
 ```
-
-> Note that the provider conformance tests require some advanced setup. The test
-> requires that at least one of each kind of managed resource exists and is
-> ready (in the status condition sense).
 
 This repository maintains a branch for each version of Crossplane that the
 conformance test suite supports. For example branch `release-1.2` will test
@@ -36,11 +26,9 @@ conformance test suite's version will not be bumped accordingly, and will remain
 at `1.2.0-cf.X`. In the unlikely event that a Crossplane patch release
 necessitates a conformance test suite update the patch version of the test suite
 will be updated to match the Crossplane patch version. The `image` referenced by
-the [distribution] and [provider] plugins in any particular release branch is
-always the authoritative conformance test for that major and minor version of
-Crossplane.
+the [distribution] plugin in any particular release branch is always the
+authoritative conformance test for that major and minor version of Crossplane.
 
 [sonobuoy]: https://sonobuoy.io/
 [crossplane]: https://crossplane.io/
 [distribution]: ./plugin-crossplane.yaml
-[provider]: ./plugin-provider.yaml

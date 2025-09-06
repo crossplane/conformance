@@ -16,6 +16,7 @@ spec:
         apiVersion: nop.crossplane.io/v1alpha1
         kind: NopResource
         spec:
+          forProvider: {}
           writeConnectionSecretToRef:
             namespace: crossplane-conformance
             name: nop-example-resource

@@ -10,9 +10,9 @@ on:
 
 env:
   # Common versions
-  GO_VERSION: "1.16"
-  GOLANGCI_VERSION: "v1.31"
-  DOCKER_BUILDX_VERSION: "v0.4.2"
+  GO_VERSION: '1.24.5'
+  GOLANGCI_VERSION: 'v2.2.2'
+  DOCKER_BUILDX_VERSION: 'v0.23.0'
 
   # Common users. We can't run a step 'if secrets.AWS_USR != ""' but we can run
   # a step 'if env.AWS_USR' != ""', so we copy these to succinctly test whether
@@ -22,13 +22,13 @@ env:
 
 jobs:
   detect-noop:
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-24.04
     outputs:
       noop: ${{ steps.noop.outputs.should_skip }}
     steps:
       - name: Detect No-op Changes
         id: noop
-        uses: fkirc/skip-duplicate-actions@v2.1.0
+        uses: fkirc/skip-duplicate-actions@f75f66ce1886f00957d99748a42c724f4330bdcf # v5.3.1
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           paths_ignore: '["**.md", "**.png", "**.jpg"]'
@@ -36,105 +36,174 @@ jobs:
           concurrent_skipping: false
 
   lint:
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-24.04
     needs: detect-noop
     if: needs.detect-noop.outputs.noop != 'true'
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4
         with:
           submodules: true
 
+      - name: Setup Go
+        uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
       - name: Find the Go Build Cache
         id: go
-        run: echo "::set-output name=cache::$(go env GOCACHE)"
+        run: echo "::set-output name=cache::$(make go.cachedir)"
 
       - name: Cache the Go Build Cache
-        uses: actions/cache@v2
+        uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 # v4
         with:
           path: ${{ steps.go.outputs.cache }}
           key: ${{ runner.os }}-build-lint-${{ hashFiles('**/go.sum') }}
           restore-keys: ${{ runner.os }}-build-lint-
 
       - name: Cache Go Dependencies
-        uses: actions/cache@v2
+        uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 # v4
         with:
           path: .work/pkg
           key: ${{ runner.os }}-pkg-${{ hashFiles('**/go.sum') }}
           restore-keys: ${{ runner.os }}-pkg-
 
-      - name: Vendor Dependencies
-        run: make vendor vendor.check
+      - name: Download Go Modules
+        run: make modules.download modules.check
 
-      # This action uses its own setup-go, which always seems to use the latest
-      # stable version of Go. We could run 'make lint' to ensure our desired Go
-      # version, but we prefer this action because it leaves 'annotations' (i.e.
-      # it comments on PRs to point out linter violations).
+      # We could run 'make lint' to ensure our desired Go version, but we prefer
+      # this action because it leaves 'annotations' (i.e. it comments on PRs to
+      # point out linter violations).
       - name: Lint
-        uses: golangci/golangci-lint-action@v2
+        uses: golangci/golangci-lint-action@aaa42aa0628b4ae2578232a66b541047968fac86 # v6
         with:
           version: ${{ env.GOLANGCI_VERSION }}
+          skip-cache: true # We do our own caching.
 
   check-diff:
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-24.04
     needs: detect-noop
     if: needs.detect-noop.outputs.noop != 'true'
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4
         with:
           submodules: true
 
       - name: Setup Go
-        uses: actions/setup-go@v2
+        uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5
         with:
           go-version: ${{ env.GO_VERSION }}
 
       - name: Find the Go Build Cache
         id: go
-        run: echo "::set-output name=cache::$(go env GOCACHE)"
+        run: echo "::set-output name=cache::$(make go.cachedir)"
 
       - name: Cache the Go Build Cache
-        uses: actions/cache@v2
+        uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 # v4
         with:
           path: ${{ steps.go.outputs.cache }}
           key: ${{ runner.os }}-build-check-diff-${{ hashFiles('**/go.sum') }}
           restore-keys: ${{ runner.os }}-build-check-diff-
 
       - name: Cache Go Dependencies
-        uses: actions/cache@v2
+        uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 # v4
         with:
           path: .work/pkg
           key: ${{ runner.os }}-pkg-${{ hashFiles('**/go.sum') }}
           restore-keys: ${{ runner.os }}-pkg-
 
-      - name: Vendor Dependencies
-        run: make vendor vendor.check
+      - name: Download Go Modules
+        run: make modules.download modules.check
 
       - name: Check Diff
         run: make check-diff
 
+  codeql:
+    runs-on: ubuntu-24.04
+    needs: detect-noop
+    if: needs.detect-noop.outputs.noop != 'true'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4
+        with:
+          submodules: true
+
+      - name: Setup Go
+        uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Find the Go Build Cache
+        id: go
+        run: echo "::set-output name=cache::$(make go.cachedir)"
+
+      - name: Cache the Go Build Cache
+        uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 # v4
+        with:
+          path: ${{ steps.go.outputs.cache }}
+          key: ${{ runner.os }}-build-codeql-${{ hashFiles('**/go.sum') }}
+          restore-keys: ${{ runner.os }}-build-codeql-
+
+      - name: Cache Go Dependencies
+        uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 # v4
+        with:
+          path: .work/pkg
+          key: ${{ runner.os }}-pkg-${{ hashFiles('**/go.sum') }}
+          restore-keys: ${{ runner.os }}-pkg-
+
+      - name: Download Go Modules
+        run: make modules.download modules.check
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@e2b3eafc8d227b0241d48be5f425d47c2d750a13 # v3
+        with:
+          languages: go
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@e2b3eafc8d227b0241d48be5f425d47c2d750a13 # v3
+
+  trivy-scan-fs:
+    runs-on: ubuntu-24.04
+    needs: detect-noop
+    if: needs.detect-noop.outputs.noop != 'true'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4
+        with:
+          submodules: true
+
+      - name: Run Trivy vulnerability scanner in fs mode
+        uses: aquasecurity/trivy-action@6e7b7d1fd3e4fef0c5fa8cce1229c54b2c9bd0d8 # 0.24.0
+        with:
+          scan-type: 'fs'
+          ignore-unfixed: true
+          scan-ref: '.'
+          exit-code: '1'
+          severity: 'CRITICAL,HIGH'
+
   publish-artifacts:
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-24.04
     needs: detect-noop
     if: needs.detect-noop.outputs.noop != 'true'
 
     steps:
       - name: Setup QEMU
-        uses: docker/setup-qemu-action@v1
+        uses: docker/setup-qemu-action@v3
         with:
           platforms: all
 
       - name: Setup Docker Buildx
-        uses: docker/setup-buildx-action@v1
+        uses: docker/setup-buildx-action@v3
         with:
           version: ${{ env.DOCKER_BUILDX_VERSION }}
           install: true
 
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4
         with:
           submodules: true
 
@@ -142,30 +211,30 @@ jobs:
         run: git fetch --prune --unshallow
 
       - name: Setup Go
-        uses: actions/setup-go@v2
+        uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5
         with:
           go-version: ${{ env.GO_VERSION }}
 
       - name: Find the Go Build Cache
         id: go
-        run: echo "::set-output name=cache::$(go env GOCACHE)"
+        run: echo "::set-output name=cache::$(make go.cachedir)"
 
       - name: Cache the Go Build Cache
-        uses: actions/cache@v2
+        uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 # v4
         with:
           path: ${{ steps.go.outputs.cache }}
           key: ${{ runner.os }}-build-publish-artifacts-${{ hashFiles('**/go.sum') }}
           restore-keys: ${{ runner.os }}-build-publish-artifacts-
 
       - name: Cache Go Dependencies
-        uses: actions/cache@v2
+        uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 # v4
         with:
           path: .work/pkg
           key: ${{ runner.os }}-pkg-${{ hashFiles('**/go.sum') }}
           restore-keys: ${{ runner.os }}-pkg-
 
-      - name: Vendor Dependencies
-        run: make vendor vendor.check
+      - name: Download Go Modules
+        run: make modules.download modules.check
 
       - name: Build Artifacts
         run: make -j2 build.all
@@ -175,13 +244,13 @@ jobs:
           BUILD_ARGS: "--load"
 
       - name: Publish Artifacts to GitHub
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: output
           path: _output/**
 
       - name: Login to Docker
-        uses: docker/login-action@v1
+        uses: docker/login-action@v3
         if: env.DOCKER_USR != ''
         with:
           username: ${{ secrets.DOCKER_USR }}
@@ -194,8 +263,6 @@ jobs:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_USR }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_PSW }}
           GIT_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          DOCS_GIT_USR: ${{ secrets.UPBOUND_BOT_GITHUB_USR }}
-          DOCS_GIT_PSW: ${{ secrets.UPBOUND_BOT_GITHUB_PSW }}
 
       - name: Promote Artifacts in S3 and Docker Hub
         if: github.ref == 'refs/heads/master' && env.AWS_USR != '' && env.DOCKER_USR != ''
@@ -207,45 +274,40 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_PSW }}
 
   publish-test-configuration:
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-24.04
     needs: detect-noop
     if: needs.detect-noop.outputs.noop != 'true'
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4
         with:
           submodules: true
           fetch-depth: 0
 
       # The tagger step uses the same logic in the build submodule to generate package tag
-      # https://github.com/upbound/build/blob/4f64913157a952dbe77cd9e05457d9abe695a1d4/makelib/common.mk#L193
+      # https://github.com/crossplane/build/blob/4f64913157a952dbe77cd9e05457d9abe695a1d4/makelib/common.mk#L193
       - name: Set Tag
         run: echo "::set-output name=VERSION_TAG::$(git describe --dirty --always --tags | sed 's/-/./2' | sed 's/-/./2' )"
         id: tagger
 
       - name: Login to Docker
-        uses: docker/login-action@v1
+        uses: docker/login-action@v3
         if: env.DOCKER_USR != ''
         with:
           username: ${{ secrets.DOCKER_USR }}
           password: ${{ secrets.DOCKER_PSW }}
 
+      - name: Setup the Crossplane CLI
+        run: "curl -sL https://raw.githubusercontent.com/crossplane/crossplane/master/install.sh | sh"
+
       - name: Build
-        uses: crossplane-contrib/xpkg-action@v0.2.0
-        with:
-          channel: master
-          version: current
-          command: build configuration -f testdata/configuration --name=conformance.xpkg
+        run: ./crossplane xpkg build -f testdata/configuration -o conformance.xpkg
 
       - name: Push
-        uses: crossplane-contrib/xpkg-action@v0.2.0
         if: env.DOCKER_USR != ''
-        with:
-          command: push configuration -f testdata/configuration/conformance.xpkg crossplane/conformance-testdata-configuration:${{ steps.tagger.outputs.VERSION_TAG }}
+        run: ./crossplane xpkg push -f conformance.xpkg index.docker.io/crossplane/conformance-testdata-configuration:${{ steps.tagger.outputs.VERSION_TAG }}
 
       - name: Push Latest
-        uses: crossplane-contrib/xpkg-action@v0.2.0
         if: env.DOCKER_USR != ''
-        with:
-          command: push configuration -f testdata/configuration/conformance.xpkg crossplane/conformance-testdata-configuration
+        run: ./crossplane xpkg push -f conformance.xpkg index.docker.io/crossplane/conformance-testdata-configuration

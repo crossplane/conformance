@@ -1,4 +1,4 @@
-// Copyright 2021 The Crossplane Authors
+// Copyright 2025 The Crossplane Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,15 +20,18 @@ import (
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
+	kextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 
-	"github.com/crossplane/crossplane-runtime/pkg/resource"
-	pkgv1 "github.com/crossplane/crossplane/apis/pkg/v1"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/resource"
+
+	extv1alpha1 "github.com/crossplane/crossplane/v2/apis/apiextensions/v1alpha1"
+	pkgv1 "github.com/crossplane/crossplane/v2/apis/pkg/v1"
 
 	"github.com/crossplane/conformance/internal"
 )
@@ -42,14 +45,12 @@ func TestProvider(t *testing.T) {
 		t.Fatalf("Create client: %v", err)
 	}
 
-	// TODO(negz): Use the other provider-nop from contrib once it's ready.
-	// https://github.com/crossplane-contrib/provider-nop
 	prv := &pkgv1.Provider{
-		ObjectMeta: metav1.ObjectMeta{Name: internal.SuiteName},
+		ObjectMeta: metav1.ObjectMeta{Name: internal.SuiteName + "-provider"},
 		Spec: pkgv1.ProviderSpec{
 			PackageSpec: pkgv1.PackageSpec{
-				Package:                     "negz/provider-nop:v0.1.0",
-				IgnoreCrossplaneConstraints: pointer.BoolPtr(true),
+				Package:                     "xpkg.crossplane.io/crossplane-contrib/provider-nop:v0.4.0",
+				IgnoreCrossplaneConstraints: ptr.To(true),
 			},
 		},
 	}
@@ -72,7 +73,7 @@ func TestProvider(t *testing.T) {
 
 	t.Run("BecomesInstalledAndHealthy", func(t *testing.T) {
 		t.Log("Testing that the provider's Healthy and Installed status conditions become 'True'.")
-		if err := wait.PollImmediate(10*time.Second, 90*time.Second, func() (done bool, err error) {
+		if err := wait.PollUntilContextTimeout(ctx, 10*time.Second, 90*time.Second, true, func(ctx context.Context) (done bool, err error) {
 			if err := kube.Get(ctx, types.NamespacedName{Name: prv.GetName()}, prv); err != nil {
 				return false, err
 			}
@@ -95,17 +96,15 @@ func TestProvider(t *testing.T) {
 	})
 
 	t.Run("RevisionBecomesHealthyAndDeploysObjects", func(t *testing.T) {
-		t.Log("Testing that the provider's revision's Healthy status condition becomes 'True', and that it deploys its objects.")
+		t.Log("Testing that the provider's revision's Healthy status conditions become 'True', and that it deploys its objects.")
 
-		if err := wait.PollImmediate(10*time.Second, 90*time.Second, func() (done bool, err error) {
+		if err := wait.PollUntilContextTimeout(ctx, 10*time.Second, 90*time.Second, true, func(ctx context.Context) (done bool, err error) {
 			l := &pkgv1.ProviderRevisionList{}
 			if err := kube.List(ctx, l); err != nil {
 				return false, err
 			}
 
 			for _, rev := range l.Items {
-				rev := rev // To avoid using the range var in a fn literal.
-
 				for _, o := range rev.GetOwnerReferences() {
 					// This is not the revision we're looking for.
 					if o.Name != prv.GetName() {
@@ -113,16 +112,22 @@ func TestProvider(t *testing.T) {
 					}
 					t.Logf("Found revision %q owned by provider %q", rev.GetName(), prv.GetName())
 
-					if rev.GetCondition(pkgv1.TypeHealthy).Status != corev1.ConditionTrue {
-						t.Logf("Revision %q is not yet Healthy", rev.GetName())
+					if rev.GetCondition(pkgv1.TypeRevisionHealthy).Status != corev1.ConditionTrue {
+						t.Logf("Revision %q is not yet RevisionHealthy", rev.GetName())
 						return false, nil
 					}
 
-					t.Logf("Revision %q is Healthy", rev.GetName())
+					if rev.GetCondition(pkgv1.TypeRuntimeHealthy).Status != corev1.ConditionTrue {
+						t.Logf("Revision %q is not yet RuntimeHealthy", rev.GetName())
+						return false, nil
+					}
 
-					// We expect the revision to deploy one object - the CRD of
-					// the NopResource managed resource.
-					if len(rev.Status.ObjectRefs) != 1 {
+					t.Logf("Revision %q is RevisionHealthy and RuntimeHealthy", rev.GetName())
+
+					// We expect the revision to deploy 2 objects - the MRD for
+					// the NopResource managed resource and a
+					// ValidatingWebhookConfiguration. // https://github.com/crossplane-contrib/provider-nop/commit/d3c10c1f26bcd78c4ed0d1a5064a27db489c667c
+					if len(rev.Status.ObjectRefs) != 2 {
 						t.Logf("Revision %q has deployed %d objects, want %d", rev.GetName(), len(rev.Status.ObjectRefs), 1)
 						return false, nil
 					}
@@ -141,6 +146,48 @@ func TestProvider(t *testing.T) {
 						}
 						t.Logf("Revision %q created %s %q", rev.GetName(), ref.Kind, ref.Name)
 					}
+
+					// Find the ManagedResourceDefinition from the provider revision object refs
+					var mrdRefName string
+					for _, ref := range rev.Status.ObjectRefs {
+						if ref.Kind == "ManagedResourceDefinition" {
+							mrdRefName = ref.Name
+							break
+						}
+					}
+
+					if mrdRefName == "" {
+						t.Logf("Revision %q has not yet created a ManagedResourceDefinition", rev.GetName())
+						return false, nil
+					}
+
+					mrd := &extv1alpha1.ManagedResourceDefinition{}
+					if err := kube.Get(ctx, types.NamespacedName{Name: mrdRefName}, mrd); err != nil {
+						if kerrors.IsNotFound(err) {
+							t.Logf("ManagedResourceDefinition %q has not yet been created", mrdRefName)
+							return false, nil
+						}
+						return false, err
+					}
+					t.Logf("Found ManagedResourceDefinition %q", mrdRefName)
+
+					// Verify the MRD is Activated
+					if mrd.Spec.State != extv1alpha1.ManagedResourceDefinitionActive {
+						t.Logf("ManagedResourceDefinition %q has spec.state=%q, want Active", mrdRefName, mrd.Spec.State)
+						return false, nil
+					}
+					t.Logf("ManagedResourceDefinition %q has spec.state=Active", mrdRefName)
+
+					// Verify the corresponding CRD for the MRD exists
+					crd := &kextv1.CustomResourceDefinition{ObjectMeta: metav1.ObjectMeta{Name: mrd.Spec.Names.Plural + "." + mrd.Spec.Group}}
+					if err := kube.Get(ctx, types.NamespacedName{Name: crd.GetName()}, crd); err != nil {
+						if kerrors.IsNotFound(err) {
+							t.Logf("CRD %q referenced by ManagedResourceDefinition %q does not exist", crd.GetName(), mrdRefName)
+							return false, nil
+						}
+						return false, err
+					}
+					t.Logf("Found CRD %q referenced by ManagedResourceDefinition %q", crd.GetName(), mrdRefName)
 
 					return true, nil
 				}

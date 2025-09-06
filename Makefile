@@ -11,31 +11,31 @@ PLATFORMS ?= linux_amd64 linux_arm64
 # Setup Go
 NPROCS ?= 1
 GO_TEST_PARALLEL := $(shell echo $$(( $(NPROCS) / 2 )))
-GO_TEST_PACKAGES = $(GO_PROJECT)/crossplane $(GO_PROJECT)/provider
-GO_LDFLAGS += -X $(GO_PROJECT)/internal.Version=$(VERSION)
-GO_SUBDIRS += internal crossplane provider
+GO_TEST_PACKAGES = $(GO_PROJECT)/tests
+GO_LDFLAGS += -X $(GO_PROJECT)/internal.version=$(VERSION)
+GO_SUBDIRS += internal tests
 GO111MODULE = on
+GOLANGCILINT_VERSION = 2.2.2
 -include build/makelib/golang.mk
 
 # Setup Images
 DOCKER_REGISTRY = crossplane
-IMAGES = conformance provider-conformance
-OSBASEIMAGE = gcr.io/distroless/static:nonroot         
--include build/makelib/image.mk  
+IMAGES = conformance
+OSBASEIMAGE = gcr.io/distroless/static:nonroot
+-include build/makelib/imagelight.mk
 
 fallthrough: submodules
 	@echo Initial setup complete. Running make again . . .
 	@make
 
-# Ensure a PR is ready for review.
-reviewable: generate lint
-	@go mod tidy
-
-# Ensure branch is clean.
-check-diff: reviewable
-	@$(INFO) checking that branch is clean
-	@test -z "$$(git status --porcelain)" || $(FAIL)
-	@$(OK) branch is clean
+# NOTE(hasheddan): the build submodule currently overrides XDG_CACHE_HOME in
+# order to force the Helm 3 to use the .work/helm directory. This causes Go on
+# Linux machines to use that directory as the build cache as well. We should
+# adjust this behavior in the build submodule because it is also causing Linux
+# users to duplicate their build cache, but for now we just make it easier to
+# identify its location in CI so that we cache between builds.
+go.cachedir:
+	@go env GOCACHE
 
 # Update the submodules, such as the common build scripts.
 submodules:
