@@ -310,4 +310,4 @@ jobs:
 
       - name: Push Latest
         if: env.DOCKER_USR != ''
-        run: ./crossplane xpkg push -f conformance.xpkg index.docker.io/crossplane/conformance-testdata-configuration
+        run: ./crossplane xpkg push -f conformance.xpkg index.docker.io/crossplane/conformance-testdata-configuration:latest
