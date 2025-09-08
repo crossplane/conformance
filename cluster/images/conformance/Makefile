@@ -3,10 +3,11 @@ include ../../../build/makelib/common.mk
 
 IMAGE = $(BUILD_REGISTRY)/conformance-$(ARCH)
 
-# Note that this is actually the 'debug' variant of the static image, which
-# includes a busybox shell with just enough functionality to turn regular old
-# Go test output into the gzipped tarball of junit XML that Sonobuoy craves.
-OSBASEIMAGE = gcr.io/distroless/static@sha256:aea3063d00e3969d57cc8903709b58c8ee813576fbba56a977eeb915515e4ff0
+# Note that this is actually the 'debug-nonroot' variant of the static-debian12
+# image, which includes a busybox shell with just enough functionality to turn
+# regular old Go test output into the gzipped tarball of junit XML that Sonobuoy
+# craves.
+OSBASEIMAGE = gcr.io/distroless/static-debian12@sha256:f556e84ce8fb32fdd5a4478550b720330a22f13ff52dab68d7a7bb3a4266829d
 include ../../../build/makelib/imagelight.mk
 
 ifeq ($(PLATFORM),$(filter $(PLATFORM),darwin_amd64 darwin_arm64 windows_amd64))

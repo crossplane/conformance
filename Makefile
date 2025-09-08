@@ -21,7 +21,7 @@ GOLANGCILINT_VERSION = 2.2.2
 # Setup Images
 REGISTRY_ORGS ?= docker.io/crossplane
 IMAGES = conformance
-OSBASEIMAGE = gcr.io/distroless/static:nonroot
+OSBASEIMAGE = gcr.io/distroless/static-debian12:nonroot
 -include build/makelib/imagelight.mk
 
 fallthrough: submodules
