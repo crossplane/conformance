@@ -39,3 +39,8 @@ img.build.shared:
 		--platform linux/$(ARCH) \
 		-t $(IMAGE) \
 		$(IMAGE_TEMP_DIR) || $(FAIL)
+
+img.promote:
+	@$(INFO) docker promote $(FROM_IMAGE) to $(TO_IMAGE)
+	@docker buildx imagetools create -t $(TO_IMAGE) $(FROM_IMAGE)
+	@$(OK) docker promote $(FROM_IMAGE) to $(TO_IMAGE)
