@@ -32,11 +32,11 @@ endif
 
 img.build.shared:
 	@cp Dockerfile $(IMAGE_TEMP_DIR) || $(FAIL)
-	@cp $(OUTPUT_DIR)/tests/linux_$(ARCH)/tests $(IMAGE_TEMP_DIR)/conformance || $(FAIL)
+	@cp -r $(OUTPUT_DIR)/tests/ $(IMAGE_TEMP_DIR)/tests || $(FAIL)
 	@cp ../../../run.sh $(IMAGE_TEMP_DIR) || $(FAIL)
 	@cd $(IMAGE_TEMP_DIR) && $(SED_CMD) 's|BASEIMAGE|$(OSBASEIMAGE)|g' Dockerfile || $(FAIL)
 	@docker buildx build $(BUILD_ARGS) \
-		--platform linux/$(ARCH) \
+		--platform $(IMAGE_PLATFORMS) \
 		-t $(IMAGE) \
 		$(IMAGE_TEMP_DIR) || $(FAIL)
 
