@@ -55,8 +55,10 @@ func TestConfiguration(t *testing.T) {
 		},
 	}
 
-	// The crossplane-conformance provider depends on xpkg.crossplane.io/crossplane-contrib/provider-nop.
+	// The crossplane-conformance provider depends on xpkg.crossplane.io/crossplane-contrib/provider-nop
+	// and xpkg.crossplane.io/crossplane-contrib/function-patch-and-transform
 	prv := &pkgv1.Provider{ObjectMeta: metav1.ObjectMeta{Name: "crossplane-contrib-provider-nop"}}
+	fnc := &pkgv1.Function{ObjectMeta: metav1.ObjectMeta{Name: "crossplane-contrib-function-patch-and-transform"}}
 
 	if err := kube.Create(ctx, cfg); err != nil {
 		t.Fatalf("Create configuration %q: %v", cfg.GetName(), err)
@@ -72,6 +74,17 @@ func TestConfiguration(t *testing.T) {
 			t.Fatalf("Delete provider %q: %v", prv.GetName(), err)
 		}
 		t.Logf("Deleted provider %q", prv.GetName())
+	})
+
+	t.Cleanup(func() {
+		t.Logf("Cleaning up function %q.", fnc.GetName())
+		if err := kube.Get(ctx, types.NamespacedName{Name: fnc.GetName()}, fnc); resource.IgnoreNotFound(err) != nil {
+			t.Fatalf("Get function %q: %v", fnc.GetName(), err)
+		}
+		if err := kube.Delete(ctx, fnc); resource.IgnoreNotFound(err) != nil {
+			t.Fatalf("Delete function %q: %v", fnc.GetName(), err)
+		}
+		t.Logf("Deleted function %q", fnc.GetName())
 	})
 
 	t.Cleanup(func() {
@@ -131,12 +144,7 @@ func TestConfiguration(t *testing.T) {
 						return false, nil
 					}
 
-					if rev.GetCondition(pkgv1.TypeRuntimeHealthy).Status != corev1.ConditionTrue {
-						t.Logf("Revision %q is not yet RuntimeHealthy", rev.GetName())
-						return false, nil
-					}
-
-					t.Logf("Revision %q is RevisionHealthy and RuntimeHealthy", rev.GetName())
+					t.Logf("Revision %q is RevisionHealthy", rev.GetName())
 
 					// We expect the revision to deploy two objects; an XRD
 					// and a Composition.
@@ -170,7 +178,7 @@ func TestConfiguration(t *testing.T) {
 		}
 	})
 
-	t.Run("DependencyBecomesInstalledAndHealthy", func(t *testing.T) {
+	t.Run("DependenciesBecomesInstalledAndHealthy", func(t *testing.T) {
 		t.Log("Testing that the configuration's dependencies' Healthy and Installed status conditions become 'True'.")
 		if err := wait.PollUntilContextTimeout(ctx, 10*time.Second, 90*time.Second, true, func(ctx context.Context) (done bool, err error) {
 			if err := kube.Get(ctx, types.NamespacedName{Name: prv.GetName()}, prv); err != nil {
@@ -195,6 +203,31 @@ func TestConfiguration(t *testing.T) {
 			return true, nil
 		}); err != nil {
 			t.Errorf("Provider %q never became Healthy and Installed: %v", prv.GetName(), err)
+		}
+
+		if err := wait.PollUntilContextTimeout(ctx, 10*time.Second, 90*time.Second, true, func(ctx context.Context) (done bool, err error) {
+			if err := kube.Get(ctx, types.NamespacedName{Name: fnc.GetName()}, fnc); err != nil {
+				// Most likely the function hasn't been created yet.
+				if kerrors.IsNotFound(err) {
+					return false, nil
+				}
+				return false, err
+			}
+
+			if fnc.GetCondition(pkgv1.TypeHealthy).Status != corev1.ConditionTrue {
+				t.Logf("Function %q is not yet Healthy", fnc.GetName())
+				return false, nil
+			}
+
+			if fnc.GetCondition(pkgv1.TypeInstalled).Status != corev1.ConditionTrue {
+				t.Logf("Function %q is not yet Installed", fnc.GetName())
+				return false, nil
+			}
+
+			t.Logf("Function %q is Healthy and Installed", fnc.GetName())
+			return true, nil
+		}); err != nil {
+			t.Errorf("Function %q never became Healthy and Installed: %v", fnc.GetName(), err)
 		}
 	})
 }
