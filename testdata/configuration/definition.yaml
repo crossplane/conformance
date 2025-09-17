@@ -1,20 +1,16 @@
 ---
-apiVersion: apiextensions.crossplane.io/v1
+apiVersion: apiextensions.crossplane.io/v2
 kind: CompositeResourceDefinition
 metadata:
   name: clusterconformances.test.crossplane.io
   labels:
     crossplane.io/test: crossplane-conformance
 spec:
+  scope: Cluster
   group: test.crossplane.io
   names:
     kind: ClusterConformance
     plural: clusterconformances
-  claimNames:
-    kind: Conformance
-    plural: conformances
-  connectionSecretKeys:
-    - test
   versions:
     - name: v1alpha1
       served: true

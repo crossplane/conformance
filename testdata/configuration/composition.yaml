@@ -9,21 +9,31 @@ spec:
   writeConnectionSecretsToNamespace: crossplane-system
   compositeTypeRef:
     apiVersion: test.crossplane.io/v1alpha1
-    kind: Conformance
-  resources:
-    - name: nop
-      base:
-        apiVersion: nop.crossplane.io/v1alpha1
-        kind: NopResource
-        spec:
-          forProvider: {}
-          writeConnectionSecretToRef:
-            namespace: crossplane-conformance
-            name: nop-example-resource
-      patches:
-        - fromFieldPath: spec.parameters.coolness
-          toFieldPath: metadata.annotations[nop.crossplane.io/coolness]
-          transforms:
-            - type: string
-              string:
-                fmt: "%d"
+    kind: ClusterConformance
+  mode: Pipeline
+  pipeline:
+    - step: patch-and-transform
+      functionRef:
+        name: crossplane-contrib-function-patch-and-transform
+      input:
+        apiVersion: pt.fn.crossplane.io/v1beta1
+        kind: Resources
+        resources:
+          - name: nop
+            base:
+              apiVersion: nop.crossplane.io/v1alpha1
+              kind: ClusterNopResource
+              spec:
+                forProvider: {}
+                writeConnectionSecretToRef:
+                  namespace: crossplane-conformance
+                  name: nop-example-resource
+            patches:
+              - type: FromCompositeFieldPath
+                fromFieldPath: spec.parameters.coolness
+                toFieldPath: metadata.annotations[nop.crossplane.io/coolness]
+                transforms:
+                  - type: string
+                    string:
+                      type: Format
+                      fmt: "%.0f"
