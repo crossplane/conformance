@@ -5,7 +5,7 @@ sonobuoy-config:
 spec:
   command: ["run.sh"]
   args:
-  image: crossplane/conformance:alpha
+  image: crossplane/conformance:v2.0.0-cf.1
   name: plugin
   resources: {}
   volumeMounts:
