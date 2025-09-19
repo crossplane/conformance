@@ -29,6 +29,20 @@ will be updated to match the Crossplane patch version. The `image` referenced by
 the [distribution] plugin in any particular release branch is always the
 authoritative conformance test for that major and minor version of Crossplane.
 
+## Releases
+
+To create a new release of this conformance suite for a new Crossplane version,
+we follow a lightweight process:
+
+* Create a release branch named `release-X.Y` using the Github UI
+* On the release branch
+  * Open/merge a PR to pin the release version in `plugin-crossplane.yaml`: [example PR]
+  * Run the Tag workflow with `vX.Y.0-cf.1`
+  * Run the CI workflow
+* On main branch
+  * Run the Tag workflow with `vX.Y+1.0-cf.1-rc.0`
+
 [sonobuoy]: https://sonobuoy.io/
 [crossplane]: https://crossplane.io/
 [distribution]: ./plugin-crossplane.yaml
+[example PR]: https://github.com/crossplane/conformance/pull/37
